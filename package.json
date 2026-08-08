@@ -1,0 +1,59 @@
+{
+  "name": "evnex",
+  "version": "0.1.0",
+  "description": "TypeScript client for the Evnex EV charger Cloud API — a faithful port of python-evnex.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "author": "typescript-evnex contributors",
+  "homepage": "https://github.com/hardbyte/python-evnex",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "evnex": "./dist/cli/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./auth": {
+      "types": "./dist/auth/index.d.ts",
+      "default": "./dist/auth/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3",
+    "zod": "^4"
+  },
+  "optionalDependencies": {
+    "qrcode": "^1.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9",
+    "@types/node": "^22",
+    "@types/qrcode": "^1.5",
+    "@vitest/coverage-v8": "^2",
+    "amazon-cognito-identity-js": "^6",
+    "eslint": "^9",
+    "prettier": "^3",
+    "typescript": "^5.6",
+    "typescript-eslint": "^8",
+    "vitest": "^2"
+  }
+}
