@@ -191,14 +191,37 @@ export type EvnexGetChargePointSessionsResponse = z.infer<
 
 /**
  * Session energy in watt-hours from the meter delta — the authoritative
- * figure (PLAN.md §10.3). `null` while charging is still in progress (no
- * `meterStop` yet), or when the session carries no `transaction` at all.
+ * energy figure for a charging session (PLAN.md §10.3).
  *
- * Deliberately tests for field *presence*, never truthiness: `meterStart: 0`
- * is a legitimate register reading, not an absent one.
+ * `EvnexChargePointSessionAttributes` offers three energy-ish fields, and the
+ * other two are traps:
+ *  - `totalEnergyUsage` is an *object* (`{ total, distributionByTariff, ... }`)
+ *    with an undocumented unit — it is not a kWh number, despite the name.
+ *  - `totalPowerUsage` is deprecated in Evnex's Enterprise schema; the CLI
+ *    still renders it for output parity with the Python CLI (PLAN.md §2.6),
+ *    but new code should not treat it as authoritative.
+ * `transaction.meterStart` / `meterStop` are watt-hour register readings, and
+ * `meterStop - meterStart` is the figure Evnex's own tooling uses.
  *
- * TODO(A4): implement.
+ * Two more traps this function exists specifically to avoid:
+ *  - `meterStop` **absent** means "still charging" — not zero, not an error.
+ *    This deliberately checks for presence (`=== undefined`), never
+ *    truthiness: a bare `!meterStop` would also reject a legitimate `0`.
+ *  - `meterStart: 0` is a legitimate register reading (e.g. a meter that was
+ *    just reset), not a sign of a missing value.
+ *
+ * @returns `null` when there is no `transaction` at all, or when `meterStop`
+ * is not yet present (session still in progress). Otherwise the watt-hour
+ * delta, which may legitimately be `0`.
  */
 export function sessionEnergyWh(session: EvnexChargePointSession): number | null {
-  throw new Error("TODO(A4)");
+  const transaction = session.attributes.transaction;
+  if (transaction === undefined || transaction === null) {
+    return null;
+  }
+  const { meterStart, meterStop } = transaction;
+  if (meterStop === undefined || meterStop === null) {
+    return null;
+  }
+  return meterStop - meterStart;
 }

@@ -1,8 +1,5 @@
 /**
  * Cost schema — ported from `evnex/schema/cost.py`.
- *
- * TODO(A3): implement (`.parse()` should already work correctly against the
- * shape below; add tests, transforms, and refinements as needed).
  */
 
 import { z } from "zod";

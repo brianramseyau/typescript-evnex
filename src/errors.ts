@@ -9,9 +9,9 @@
  * and JS has no equivalent shared base worth reusing, so this port
  * introduces EvnexError as the unifying root (PLAN.md §2.4).
  *
- * TODO(A1): implement. Every class sets `this.name` explicitly (so it
- * survives minification) and supports `cause` via the standard `ErrorOptions`
- * second constructor argument.
+ * Every class sets `this.name` explicitly (so it survives minification)
+ * and supports `cause` via the standard `ErrorOptions` second constructor
+ * argument.
  *
  * Note: Python's deprecated `NotAuthorizedException` module-level
  * `__getattr__` alias is deliberately NOT ported — see PLAN.md §2.4. It is
@@ -23,27 +23,57 @@
 export class EvnexError extends Error {
   constructor(message?: string, options?: ErrorOptions) {
     super(message, options);
-    throw new Error("TODO(A1)");
+    this.name = "EvnexError";
   }
 }
 
 /** Base for authentication and session lifecycle errors. */
-export class EvnexAuthError extends EvnexError {}
+export class EvnexAuthError extends EvnexError {
+  constructor(message?: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "EvnexAuthError";
+  }
+}
 
 /** The username or password was rejected. */
-export class InvalidCredentialsError extends EvnexAuthError {}
+export class InvalidCredentialsError extends EvnexAuthError {
+  constructor(message?: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "InvalidCredentialsError";
+  }
+}
 
 /** The session cannot be renewed; interactive authentication is needed. */
-export class ReauthenticationRequiredError extends EvnexAuthError {}
+export class ReauthenticationRequiredError extends EvnexAuthError {
+  constructor(message?: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "ReauthenticationRequiredError";
+  }
+}
 
 /** The short-lived challenge session lapsed; restart authentication. */
-export class ChallengeExpiredError extends EvnexAuthError {}
+export class ChallengeExpiredError extends EvnexAuthError {
+  constructor(message?: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "ChallengeExpiredError";
+  }
+}
 
 /** A new password must be set before this account can sign in. */
-export class PasswordChangeRequiredError extends EvnexAuthError {}
+export class PasswordChangeRequiredError extends EvnexAuthError {
+  constructor(message?: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "PasswordChangeRequiredError";
+  }
+}
 
 /** The challenge response (e.g. MFA code) was rejected; retry is possible. */
-export class InvalidChallengeResponseError extends EvnexAuthError {}
+export class InvalidChallengeResponseError extends EvnexAuthError {
+  constructor(message?: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "InvalidChallengeResponseError";
+  }
+}
 
 /**
  * A required client configuration value is missing or invalid.
@@ -51,7 +81,17 @@ export class InvalidChallengeResponseError extends EvnexAuthError {}
  * Deterministic and never worth retrying (e.g. no organisation id could be
  * resolved for an org-scoped call).
  */
-export class EvnexConfigurationError extends EvnexError {}
+export class EvnexConfigurationError extends EvnexError {
+  constructor(message?: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "EvnexConfigurationError";
+  }
+}
 
 /** Wraps a `z.ZodError` raised while parsing an API response, on `cause`. */
-export class EvnexValidationError extends EvnexError {}
+export class EvnexValidationError extends EvnexError {
+  constructor(message?: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "EvnexValidationError";
+  }
+}

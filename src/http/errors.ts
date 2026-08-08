@@ -2,11 +2,10 @@
  * HTTP-transport errors — ported from the httpx exception surface used by
  * `evnex/api.py` (`HTTPStatusError`, `ReadTimeout`).
  *
- * TODO(A1): implement. `EvnexHttpError.message` carries status, path, and
- * correlation id only — the raw response body stays on `cause` and never
- * reaches a user-facing string, since error payloads can echo request
- * details back (PLAN.md §10.6). `x-correlation-id` is a pure addition over
- * python-evnex, which discards it.
+ * `EvnexHttpError.message` carries status, path, and correlation id only —
+ * the raw response body stays on `cause` and never reaches a user-facing
+ * string, since error payloads can echo request details back (PLAN.md §10.6).
+ * `x-correlation-id` is a pure addition over python-evnex, which discards it.
  */
 
 import { EvnexError } from "../errors.js";
@@ -21,23 +20,28 @@ export interface EvnexHttpErrorOptions extends ErrorOptions {
 
 /** A non-2xx HTTP response from the EVNEX API. */
 export class EvnexHttpError extends EvnexError {
-  readonly status!: number;
-  readonly path!: string;
+  readonly status: number;
+  readonly path: string;
   readonly body: unknown;
   readonly correlationId: string | undefined;
 
   constructor(message: string, options: EvnexHttpErrorOptions) {
     super(message, options);
-    throw new Error("TODO(A1)");
+    this.name = "EvnexHttpError";
+    this.status = options.status;
+    this.path = options.path;
+    this.body = options.body;
+    this.correlationId = options.correlationId;
   }
 }
 
 /** A request timed out (`httpx.ReadTimeout` analogue). */
 export class EvnexTimeoutError extends EvnexError {
-  readonly path!: string;
+  readonly path: string;
 
   constructor(message: string, options: { path: string } & ErrorOptions) {
     super(message, options);
-    throw new Error("TODO(A1)");
+    this.name = "EvnexTimeoutError";
+    this.path = options.path;
   }
 }
