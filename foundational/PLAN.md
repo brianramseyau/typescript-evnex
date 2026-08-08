@@ -2,7 +2,7 @@
 
 A full-parity TypeScript port of [`hardbyte/python-evnex`](https://github.com/hardbyte/python-evnex)
 (v0.7.0, Apache-2.0, by Brian Thorne), structured so that the work can be
-executed by ~23 delegated agents running in as many parallel lanes as the
+executed by 24 delegated agents running in as many parallel lanes as the
 dependency graph allows.
 
 - **Source of truth:** `python-evnex` @ v0.7.0 — 5,458 lines across `evnex/`
@@ -26,9 +26,28 @@ dependency graph allows.
 | HTTP | Native `fetch` + a thin transport layer | Replaces `httpx`; no runtime HTTP dependency |
 | Cognito | `@aws-sdk/client-cognito-identity-provider` + own SRP | `pycognito` has no maintained JS equivalent that covers every operation used |
 | Retry | Hand-written, mirroring `tenacity` semantics exactly | The retry *policy* is load-bearing behaviour and must be ported precisely, not approximated by a generic library |
-| CLI | `commander` | Mature TS types; supports options in trailing position, which the Python test suite asserts |
-| Tests | `vitest` + `msw` (HTTP) + `aws-sdk-client-mock` (Cognito) | Direct analogues of `pytest` + `respx` + the `FakeCognito` fixture |
+| CLI | `node:util` `parseArgs` + a small in-house command router | No dependency; `strict: true` rejects undeclared flags natively, which is exactly what two Python tests assert |
+| JWT | `node:crypto` + `base64url` | Unverified decode is ~10 lines; JWKS verification uses native JWK import |
+| Tests | `vitest` + an injected stub `fetch` + the SDK's own `requestHandler` | The `fetch` injection seam and A6's SDK-free adapter boundary already exist, so no HTTP or AWS mocking library is needed |
 | Lint/format | `eslint` (typescript-eslint, flat config) + `prettier` | Analogue of `ruff check` / `ruff format` |
+
+### Dependency policy
+
+**Anything modern Node already does, we do with Node.** No `axios` (native
+`fetch`), no `commander` (`node:util` `parseArgs`), no `jose` (`node:crypto`),
+no bundler (ESM-only, so `tsc` emits directly), no HTTP or AWS mocking library
+(both seams are already injectable). First-party SDKs are fine — hence
+`@aws-sdk/client-cognito-identity-provider`.
+
+The **one deliberate exception is `zod`**. Node has no native runtime schema
+validation, and validated responses are much of what this package offers over
+hand-rolling a client; `python-evnex`'s pydantic models are the de facto API
+spec, so a structurally similar library keeps both the port and any future
+re-sync mechanical.
+
+That leaves the library core at **two runtime dependencies**, with `qrcode` an
+optional peer that the CLI degrades gracefully without. Adding a third requires
+INT approval and a line in this section explaining why Node cannot do it.
 
 ### Open decisions (resolve before Wave 4 / D4)
 
@@ -115,7 +134,7 @@ file.** This is the property that makes the parallelism safe.
 │   │       └── cost.ts
 │   └── cli/
 │       ├── index.ts                 # bin entrypoint, top-level error mapping
-│       ├── parser.ts                # commander wiring, shared flag groups
+│       ├── parser.ts                # parseArgs command router, shared flag groups
 │       ├── tokenCache.ts            # 0600 token cache
 │       ├── prompt.ts                # input()/getpass() equivalents
 │       ├── otp.ts                   # --otp / --otp-command resolution
@@ -353,10 +372,11 @@ which is what Cognito's server implementation expects.
 
 - **Token verification.** `pycognito` verifies freshly issued tokens against the
   pool JWKS and raises `TokenVerificationException` (mapped to `EvnexAuthError` /
-  `ReauthenticationRequiredError`). Port this with `jose` + a cached JWKS fetch,
-  behind a `verifyTokens` config flag defaulting to `true`. If it proves
-  impractical, it must be recorded in `PARITY.md` as a deliberate behavioural
-  difference — not dropped quietly.
+  `ReauthenticationRequiredError`). Port this with `node:crypto`'s native JWK
+  import plus a cached JWKS fetch (A7's `verifyJwt`), behind a `verifyTokens`
+  config flag defaulting to `true`. If it proves impractical, it must be
+  recorded in `PARITY.md` as a deliberate behavioural difference — not dropped
+  quietly.
 - **Device tracking.** If the pool ever enables device tracking, Cognito answers
   with a `DEVICE_SRP_AUTH` challenge that `pycognito` handles and this port will
   not. Detect it and raise a clear `EvnexAuthError` naming the limitation.
@@ -435,7 +455,10 @@ Every stub carries a `TODO(<agent-id>)` marker naming its owner. Consequences:
 3. **Port the tests too.** Test files are part of your ownership, not a separate
    agent's job (§6 lists which tests belong to whom).
 4. **No `any`.** `unknown` + a Zod parse, or a precise type.
-5. **No new runtime dependencies** beyond those in §7 without INT approval.
+5. **No new runtime dependencies.** The library core is `zod` plus the AWS
+   Cognito SDK, full stop (§0). If you reach for a package, check whether Node
+   already does it — it usually does. Anything else needs INT approval and a
+   §0 entry justifying it.
 6. **Report deliberate deviations** from Python behaviour; they become
    `PARITY.md` rows.
 
@@ -650,7 +673,8 @@ touching `session.ts`, `account.ts`, `api.ts` or the CLI. If that swap is ever
 made, remember the in-memory `ICognitoStorage` shim: the library defaults to
 `localStorage`, which does not exist server-side.
 
-**Acceptance.** Every operation tested with `aws-sdk-client-mock`. The
+**Acceptance.** Every operation tested by stubbing the SDK's own
+`requestHandler` — first-party, no mocking library. The
 `NEW_PASSWORD_REQUIRED` challenge path is covered. No `@aws-sdk/*` type appears
 in any exported signature — verified by a test that type-checks the module's
 public surface in isolation, since this property is what the escape hatch
@@ -672,7 +696,16 @@ depends on.
 - The constructor derives `expiresAt` from the access token's `exp` claim when
   not supplied, and normalises a naive/ambiguous stored timestamp to UTC.
 - `decodeExpiry()` is a best-effort **unverified** decode; every malformed input
-  returns `undefined` rather than throwing.
+  returns `undefined` rather than throwing. **No `jose`** — split on `.`,
+  `Buffer.from(part, "base64url")`, `JSON.parse`, read `exp`. Roughly ten lines,
+  and it must not throw on a non-JWT string, a truncated token, a valid JWT with
+  no `exp`, or a non-numeric `exp`.
+- `jwt.ts` also exports `verifyJwt(token, jwks)` for B1's optional
+  `verifyTokens` path (§3.4), built on `node:crypto`:
+  `createPublicKey({ key: jwk, format: "jwk" })` then
+  `crypto.verify("RSA-SHA256", …)`. JWKS comes from
+  `https://cognito-idp.{region}.amazonaws.com/{poolId}/.well-known/jwks.json`,
+  fetched once and cached by `kid`.
 - `AuthChallenge` is JSON-serialisable so a web backend can answer it in a later
   request or another process.
 - `TotpEnrollment.provisioningUri(accountName, issuer = "Evnex")` must
@@ -728,12 +761,19 @@ test suite.
 **Owns.** `test/support/**`, `vitest.setup.ts` + the fixture-validation test.
 
 **Details.**
-- `fakeCognito.ts` — the `aws-sdk-client-mock` analogue of `FakeCognito`,
-  including the token-serial rotation behaviour and the detail that **refresh
-  responses omit the refresh token** unless pool rotation is enabled. That
-  detail is what `TokenSet` carry-forward logic exists for.
-- `msw` handlers + response fixtures for every EVNEX endpoint, lifted verbatim
-  from the Python tests so both suites assert against identical payloads.
+- `fakeCognito.ts` — the `FakeCognito` analogue, as a **fake implementation of
+  A6's adapter interface** rather than an SDK mock (A6 exports no SDK types, so
+  everything above it can be tested without AWS in the picture at all). Include
+  the token-serial rotation behaviour and the detail that **refresh responses
+  omit the refresh token** unless pool rotation is enabled — that is what
+  `TokenSet`'s carry-forward logic exists for. A6's own tests stub one level
+  lower, via the SDK's `requestHandler`.
+- `stubFetch.ts` — a route-table stub passed in through `EvnexOptions.fetch`,
+  **not** `msw`. The injection seam already exists as the httpx-client
+  replacement, so intercepting the global is unnecessary; a stub also makes
+  request assertions direct. Plus response fixtures for every EVNEX endpoint,
+  lifted verbatim from the Python tests so both suites assert against identical
+  payloads.
 - Builders: `makeJwt({ expiresIn })`, `makeAuth()`, `makeResumedAuth()`,
   `makeClient()` — the analogues of the Python fixtures.
 - A CLI harness capturing stdout/stderr separately and the process exit code,
@@ -763,7 +803,7 @@ INT early, since this module has the most downstream readers.
 - `otp.ts`: `--otp` (single-use — consumed on first read) and `--otp-command`
   (shell out, trim stdout, exit 1 on non-zero status or empty output, relay the
   child's stderr).
-- `qr.ts`: terminal QR via the `qrcode` package; `--browser` writes an SVG to
+- `qr.ts`: terminal QR via the **optional peer** `qrcode` package; `--browser` writes an SVG to
   `$XDG_RUNTIME_DIR` when set (tmpfs, cleared at logout) else the temp dir,
   chmod `0600`, and prints the "contains your MFA secret, delete after scanning"
   warning. A missing `qrcode` package degrades to printing the otpauth URI —
@@ -897,7 +937,7 @@ the token rotation captured during `changePassword`.
   point replacing "optionally pass in an httpx client".
 
 **Acceptance.** One test per method asserting method, path, query, body and
-parsed return type against `msw`. Tests mirroring
+parsed return type against A9's injected stub `fetch`. Tests mirroring
 `test_get_user_detail_preserves_configured_org`,
 `..._defaults_org_when_unset`, `..._defaults_org_when_blank`,
 `test_org_method_without_org_id_raises`,
@@ -916,14 +956,47 @@ parsed return type against `msw`. Tests mirroring
 **Owns.** `src/cli/index.ts`, `src/cli/parser.ts` + tests.
 
 **Details.**
-- `commander` program named `evnex`, `--version` from `package.json`.
-- Shared flag groups mirroring argparse's parent parsers: `cacheFlags`
-  (`--token-cache`), `otpFlags` (`--otp`, `--otp-command`), `jsonFlag`
-  (`--json`), `chargePointFlag` (`--charge-point ID`). Attach them per command
-  *exactly* as the original does — commands that never sign in (`auth logout`)
-  or need no session (`auth reset-password`) must **reject** the session flags
-  rather than ignore them. Two Python tests assert this.
-- A command group with no leaf subcommand prints that group's help and exits 0.
+**No CLI framework** — `node:util` `parseArgs` plus a small in-house command
+router (§0). Design:
+
+```ts
+interface Command {
+  name: string;
+  help: string;                     // one-line, for the parent's listing
+  description?: string;             // longer, for this command's own --help
+  flags?: FlagGroup[];              // composed, mirroring argparse parents
+  positionals?: PositionalSpec[];
+  children?: Command[];
+  run?: (args: ParsedArgs) => Promise<void>;
+}
+```
+
+Resolution walks argv consuming child names while they match, then calls
+`parseArgs` on the remainder with the resolved command's merged flag config and
+`allowPositionals: true`.
+
+Three reasons this lands cleanly rather than being a framework re-implementation:
+
+- **`strict: true` rejects undeclared options natively**, throwing
+  `ERR_PARSE_ARGS_UNKNOWN_OPTION`. That *is* the behaviour two Python tests
+  assert — `auth logout` taking only `--token-cache`, and `auth reset-password`
+  rejecting the session flags. Attach flag groups per command exactly as the
+  original does and the rejection comes for free.
+- **`parseArgs` does not stop at the first positional**, so options in trailing
+  position work without special handling — the other asserted behaviour.
+- Help text is generated from the tree, so it cannot drift from the parser.
+
+Two gaps to handle explicitly, since `parseArgs` is deliberately minimal:
+
+- **No negated flags.** `--no-prefer` (argparse `store_false` onto `prefer`) is
+  declared as a plain boolean `"no-prefer"` and inverted by the handler.
+- **No `choices` or type validation.** `--days ∈ {7,14,30}` and `--limit` as a
+  positive integer are validated in the router against `PositionalSpec` /
+  `FlagGroup` metadata, and must exit **2** with a usage message, matching
+  argparse.
+
+Also: `--version` from `package.json`, and a command group with no leaf
+subcommand prints that group's help and exits 0.
 - Top-level error mapping: `EvnexAuthError` → stderr + exit 1;
   `EvnexHttpError`/`EvnexTimeoutError` → stderr + exit 1; `EvnexValidationError`
   → the "try upgrading evnex" message + exit 1; SIGINT → exit 130.
@@ -1061,9 +1134,15 @@ publish metadata, `.npmignore`/`files`.
 - Publish on GitHub release with npm provenance (`--provenance`, `id-token: write`),
   mirroring the upstream PyPI workflow's trusted-publishing shape.
 - `exports` map: `.` (library) and `./package.json`; `bin: { evnex: "./dist/cli/index.js" }`.
+- Build is `tsc -p tsconfig.build.json` — ESM-only, no bundler.
 - Verify the built package installs and `npx evnex --version` runs from a clean
   tarball before the gate passes.
-- Resolve the two open decisions in §0.
+- **Dependency gate:** assert `dependencies` is exactly `zod` and
+  `@aws-sdk/client-cognito-identity-provider`, that `qrcode` is an
+  `optionalDependencies`/peer and the CLI still works without it installed, and
+  that no dev-only package (notably `amazon-cognito-identity-js`) reaches the
+  published runtime graph. Fail the build on a third runtime dependency.
+- Resolve the open decision in §0.
 
 ---
 
@@ -1131,20 +1210,37 @@ the wave gate, arbitrate any cross-file change request, and maintain the
 
 | Package | Replaces | Notes |
 |---|---|---|
-| `zod` ^4 | `pydantic` | |
-| `@aws-sdk/client-cognito-identity-provider` ^3 | `boto3` | tree-shakeable; only the commands in §3.1 are imported |
-| `commander` ^12 | `argparse` | CLI only |
-| `qrcode` ^1.5 | `qrcode` | CLI only; **optional peer** — a missing install degrades gracefully, as upstream |
-| `jose` ^5 | `pyjwt` | JWT decode + optional JWKS verification |
+| `zod` ^4 | `pydantic` | The one deliberate exception to the dependency policy in §0 |
+| `@aws-sdk/client-cognito-identity-provider` ^3 | `boto3` | First-party. Tree-shakeable; only the commands in §3.1 are imported |
 
-`httpx` → native `fetch`. `tenacity` → `src/http/retry.ts`. `pydantic-settings`
-→ `src/config.ts`. `pycognito` → `src/auth/{srp,cognito}.ts`.
+**Optional peer:** `qrcode` ^1.5 — CLI only. A missing install degrades to
+printing the `otpauth://` URI, which upstream treats as a supported opt-out, so
+the package has **no required runtime dependency for the CLI**.
 
-**Dev:** `typescript`, `vitest`, `@vitest/coverage-v8`, `msw`,
-`aws-sdk-client-mock`, `eslint`, `typescript-eslint`, `prettier`, `tsup`,
-`@types/node`, and `amazon-cognito-identity-js` — **test-only**, as A5's
-differential SRP oracle (§10.7). It must never appear in `dependencies`; a CI
-check asserts it stays out of the published package's runtime graph.
+Replaced by the platform, per §0:
+
+| Python | Not this | Instead |
+|---|---|---|
+| `httpx` | `axios`, `node-fetch`, `undici` | native `fetch` |
+| `argparse` | `commander`, `yargs` | `node:util` `parseArgs` + in-house router (C1) |
+| `pyjwt` | `jose` | `node:crypto` + `base64url` (A7) |
+| `tenacity` | `p-retry`, `async-retry` | `src/http/retry.ts` (A8) |
+| `pydantic-settings` | — | `src/config.ts` (A1) |
+| `pycognito` | `amazon-cognito-identity-js` | `src/auth/{srp,cognito}.ts` (A5, A6) |
+
+**Build:** ESM-only means no bundler. `tsc -p tsconfig.build.json` emits the
+package directly — no `tsup`, no `rollup`.
+
+**Dev:** `typescript`, `vitest`, `@vitest/coverage-v8`, `eslint`,
+`typescript-eslint`, `prettier`, `@types/node`, and
+`amazon-cognito-identity-js` — **test-only**, as A5's differential SRP oracle
+(§10.7).
+
+No `msw` (tests inject a stub `fetch` — the seam `EvnexOptions.fetch` already
+provides) and no `aws-sdk-client-mock` (A6 stubs via the SDK's own
+`requestHandler`; every other layer injects a fake adapter, since A6 exports no
+SDK types). A CI check asserts `dependencies` contains exactly the two packages
+above and that nothing dev-only reaches the published runtime graph.
 
 ---
 
@@ -1154,7 +1250,7 @@ check asserts it stays out of the published package's runtime graph.
 |---|---|---|---|
 | 1 | **SRP implementation is subtly wrong** — the timestamp format, `PAD()`, or the HKDF info string. Fails only against live Cognito, and always as an opaque `NotAuthorizedException`. | Sign-in never works | **Substantially mitigated.** (a) Differential test oracle against `amazon-cognito-identity-js`, which is proven working against this exact pool from Node (§10.7) — turns the risk into a Wave-1 unit test; (b) D5 validates against a live account before release; (c) A6's adapter leaks no SDK types, so swapping the handshake to that library is a contained change if it still fails |
 | 2 | Cognito **device tracking** enabled on the pool would issue a `DEVICE_SRP_AUTH` challenge this port does not implement | Sign-in fails for affected accounts | Detect and raise a clear, named error rather than a generic failure; document in `PARITY.md` |
-| 3 | `pycognito`'s **JWKS token verification** has no free equivalent | Behavioural difference vs. Python | Port with `jose` behind a `verifyTokens` flag; if dropped, document explicitly |
+| 3 | `pycognito`'s **JWKS token verification** has no direct equivalent | Behavioural difference vs. Python | Port on `node:crypto`'s native JWK import behind a `verifyTokens` flag (A7); if dropped, document explicitly |
 | 4 | **Retry semantics** silently mis-ported (full-jitter instead of uniform, or 5 retries instead of 5 attempts) | Thundering herd against the API | Distribution test in A8; §2.5 states the formula literally |
 | 5 | **Schema strictness** — a `.strict()` Zod object turns a benign API field addition into a hard failure | Outage on an upstream change | §2.2 forbids `.strict()`; D1 audits |
 | 6 | **CLI output drift** from the Python CLI breaks anyone parsing it | Silent breakage for scripted users | Shared fixtures; byte-comparison tests on `--json`; `printTable` spec pinned in A10 |
