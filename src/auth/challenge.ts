@@ -4,8 +4,6 @@
  *
  * JSON-serialisable so a challenge can be answered by a different process or
  * a later request (within the short session lifetime, around 3 minutes).
- *
- * TODO(A7): implement.
  */
 
 export interface AuthChallengeOptions {
@@ -32,20 +30,30 @@ export class AuthChallenge {
     this.name = options.name;
     this.session = options.session;
     this.username = options.username;
-    this.parameters = options.parameters ?? {};
-    throw new Error("TODO(A7)");
+    this.parameters = Object.freeze({ ...(options.parameters ?? {}) });
+    Object.freeze(this);
   }
 
   toJSON(): AuthChallengeJSON {
-    throw new Error("TODO(A7)");
+    return {
+      name: this.name,
+      session: this.session,
+      username: this.username,
+      parameters: { ...this.parameters },
+    };
   }
 
   static fromJSON(data: AuthChallengeJSON): AuthChallenge {
-    throw new Error("TODO(A7)");
+    return new AuthChallenge({
+      name: data.name,
+      session: data.session,
+      username: data.username,
+      parameters: { ...(data.parameters ?? {}) },
+    });
   }
 }
 
 /** Type guard distinguishing an `AuthChallenge` from a resolved `TokenSet`. */
 export function isAuthChallenge(value: unknown): value is AuthChallenge {
-  throw new Error("TODO(A7)");
+  return value instanceof AuthChallenge;
 }
