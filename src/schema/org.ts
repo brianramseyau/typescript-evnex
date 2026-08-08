@@ -1,7 +1,5 @@
 /**
  * Organisation schemas — ported from `evnex/schema/org.py`.
- *
- * TODO(A3): implement/refine and add tests.
  */
 
 import { z } from "zod";

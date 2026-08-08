@@ -1,9 +1,6 @@
 /**
  * Charge point schemas (v2 / flat envelope) — ported from
  * `evnex/schema/charge_points.py`.
- *
- * TODO(A3): implement/refine and add tests, including the `toJson()`
- * round-trip fixtures described in PLAN.md §2.6.
  */
 
 import { z } from "zod";

@@ -1,9 +1,9 @@
 /**
  * User schema — ported from `evnex/schema/user.py`.
  *
- * TODO(A3): implement/refine and add tests. A user payload with no `name`
- * must validate (mirrors `test_user_without_name_validates`) — the API omits
- * the field entirely for accounts that never set one.
+ * A user payload with no `name` validates (mirrors upstream's
+ * `test_user_without_name_validates`) — the API omits the field entirely for
+ * accounts that never set one.
  */
 
 import { z } from "zod";

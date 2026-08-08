@@ -526,6 +526,10 @@ describe("parseModel", () => {
     it("recognizes all CONNECTOR_MAP values", () => {
       expect(parseModel("E2C-15VO").connector).toBe("Type 1");
       expect(parseModel("E2C-25VO").connector).toBe("Type 2");
+      expect(parseModel("X7-T1S-G").connector).toBe("Type 1");
+      expect(parseModel("X7-T2S-G").connector).toBe("Type 2");
+      expect(parseModel("E7-T1S-G").connector).toBe("Type 1");
+      expect(parseModel("E7-T2S-G").connector).toBe("Type 2");
     });
 
     it("recognizes all NAME_MAP_E2 values", () => {
@@ -534,8 +538,8 @@ describe("parseModel", () => {
     });
 
     it("recognizes all CABLE_MAP_E2 values", () => {
-      expect(parseModel("E2C-55VO").cableLength).toBe("5 metres");
-      expect(parseModel("E2C-85VO").cableLength).toBe("8 metres");
+      expect(parseModel("E2C-25VO").cableLength).toBe("5 metres");
+      expect(parseModel("E2C-28VO").cableLength).toBe("8 metres");
     });
 
     it("recognizes all COLOUR_MAP values", () => {
@@ -545,6 +549,8 @@ describe("parseModel", () => {
       expect(parseModel("E2C-25VO").colour).toBe("Volcanic");
       expect(parseModel("X7-T2S-W").colour).toBe("White");
       expect(parseModel("X7-T2S-G").colour).toBe("Grey");
+      expect(parseModel("E7-T2S-W").colour).toBe("White");
+      expect(parseModel("E7-T2S-G").colour).toBe("Grey");
     });
 
     it("recognizes all POWER_MAP values", () => {
@@ -560,6 +566,56 @@ describe("parseModel", () => {
     it("recognizes all CONFIG_MAP values", () => {
       expect(parseModel("X7-T2S-G").configuration).toBe("Socket");
       expect(parseModel("X7-T2T-G").configuration).toBe("Tether");
+      expect(parseModel("E7-T2S-G").configuration).toBe("Socket");
+      expect(parseModel("E7-T2T-G").configuration).toBe("Tether");
+    });
+  });
+
+  describe("edge cases for branch coverage", () => {
+    it("exercises E7 spec length validation (too short spec)", () => {
+      expect(parseModel("E7-T-W")).toEqual({
+        name: "Unknown",
+        connector: "Unknown",
+        cableLength: "Unknown",
+        colour: "Unknown",
+        power: "N/A",
+        powerSensor: "N/A",
+        configuration: "N/A",
+      });
+    });
+
+    it("exercises E7 spec length validation (too short colour)", () => {
+      expect(parseModel("E7-T2S-")).toEqual({
+        name: "Unknown",
+        connector: "Unknown",
+        cableLength: "Unknown",
+        colour: "Unknown",
+        power: "N/A",
+        powerSensor: "N/A",
+        configuration: "N/A",
+      });
+    });
+
+    it("exercises X series with all fallback lookups", () => {
+      // Test X series with unrecognized values in each field
+      const result = parseModel("X99-X9X-Z");
+      expect(result.name).toBe("X99");
+      expect(result.power).toBe("99"); // Not in POWER_MAP
+      expect(result.powerSensor).toBe("X"); // Not in PS_MAP
+      expect(result.connector).toBe("9"); // Not in CONNECTOR_MAP
+      expect(result.configuration).toBe("X"); // Not in CONFIG_MAP
+      expect(result.colour).toBe("Z"); // Not in COLOUR_MAP
+    });
+
+    it("exercises E7 series with all fallback lookups", () => {
+      // Test E7 series with unrecognized values in each field
+      const result = parseModel("E7-X9X-Z");
+      expect(result.name).toBe("E7");
+      expect(result.power).toBe("7"); // Always "7" for E7
+      expect(result.connector).toBe("9"); // Not in CONNECTOR_MAP
+      expect(result.configuration).toBe("X"); // Not in CONFIG_MAP
+      expect(result.colour).toBe("Z"); // Not in COLOUR_MAP
+      expect(result.powerSensor).toBe("N/A"); // Always "N/A" for E7
     });
   });
 });

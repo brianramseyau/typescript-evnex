@@ -87,6 +87,19 @@ export function parseModel(modelId: string): EvnexModelInfo {
       const prefix = parts[0]!;
       const spec = parts[1]!;
 
+      // Require spec to have at least 3 characters: connector(1) + cable(1) + colour(2)
+      if (spec.length < 3) {
+        return {
+          name: "Unknown",
+          connector: "Unknown",
+          cableLength: "Unknown",
+          colour: "Unknown",
+          power: "N/A",
+          powerSensor: "N/A",
+          configuration: "N/A",
+        };
+      }
+
       const name = NAME_MAP_E2[prefix] ?? prefix;
       const connector = CONNECTOR_MAP[spec.charAt(0)] ?? spec.charAt(0);
       const cableLength = CABLE_MAP_E2[spec.charAt(1)] ?? spec.charAt(1);
@@ -101,7 +114,7 @@ export function parseModel(modelId: string): EvnexModelInfo {
         powerSensor: "N/A",
         configuration: "N/A",
       };
-    } catch {
+    } /* v8 ignore start -- unreachable: string methods (split, charAt, slice) never throw */ catch {
       return {
         name: "Unknown",
         connector: "Unknown",
@@ -111,7 +124,7 @@ export function parseModel(modelId: string): EvnexModelInfo {
         powerSensor: "N/A",
         configuration: "N/A",
       };
-    }
+    } /* v8 ignore stop */
   }
 
   if (modelId.startsWith("X")) {
@@ -133,6 +146,20 @@ export function parseModel(modelId: string): EvnexModelInfo {
       const series = parts[0]!;
       const spec = parts[1]!;
       const colourStr = parts[2]!;
+
+      // Require spec to have at least 3 characters: powerSensor(1) + connector(1) + configuration(1)
+      // and colourStr to have at least 1 character for colour
+      if (spec.length < 3 || colourStr.length < 1) {
+        return {
+          name: "Unknown",
+          connector: "Unknown",
+          cableLength: "Unknown",
+          colour: "Unknown",
+          power: "N/A",
+          powerSensor: "N/A",
+          configuration: "N/A",
+        };
+      }
 
       // Extract power rating (X7, X22, etc.)
       const powerKey = series.slice(1); // e.g. "7" or "22"
@@ -159,7 +186,7 @@ export function parseModel(modelId: string): EvnexModelInfo {
         powerSensor,
         configuration,
       };
-    } catch {
+    } /* v8 ignore start -- unreachable: string methods (split, charAt, slice) never throw */ catch {
       return {
         name: "Unknown",
         connector: "Unknown",
@@ -169,7 +196,7 @@ export function parseModel(modelId: string): EvnexModelInfo {
         powerSensor: "N/A",
         configuration: "N/A",
       };
-    }
+    } /* v8 ignore stop */
   }
 
   if (modelId.startsWith("E7")) {
@@ -192,6 +219,20 @@ export function parseModel(modelId: string): EvnexModelInfo {
       const spec = parts[1]!;
       const colourStr = parts[2]!;
 
+      // Require spec to have at least 3 characters (first unused + connector + configuration)
+      // and colourStr to have at least 1 character for colour
+      if (spec.length < 3 || colourStr.length < 1) {
+        return {
+          name: "Unknown",
+          connector: "Unknown",
+          cableLength: "Unknown",
+          colour: "Unknown",
+          power: "N/A",
+          powerSensor: "N/A",
+          configuration: "N/A",
+        };
+      }
+
       // Second char = Connector type (1 or 2)
       const connector = CONNECTOR_MAP[spec.charAt(1)] ?? spec.charAt(1);
 
@@ -211,7 +252,7 @@ export function parseModel(modelId: string): EvnexModelInfo {
         powerSensor: "N/A",
         configuration,
       };
-    } catch {
+    } /* v8 ignore start -- unreachable: string methods (split, charAt, slice) never throw */ catch {
       return {
         name: "Unknown",
         connector: "Unknown",
@@ -221,7 +262,7 @@ export function parseModel(modelId: string): EvnexModelInfo {
         powerSensor: "N/A",
         configuration: "N/A",
       };
-    }
+    } /* v8 ignore stop */
   }
 
   // Unknown series

@@ -23,37 +23,37 @@ export class EvnexConfig {
   constructor(overrides?: EvnexConfigOptions) {
     // Explicit overrides win over environment, which wins over defaults.
     // Treat empty string from env as if unset (the same as Python).
-    if (overrides?.EVNEX_BASE_URL !== undefined) {
-      this.EVNEX_BASE_URL = overrides.EVNEX_BASE_URL;
-    } else {
-      const baseUrlEnv = process.env["EVNEX_BASE_URL"];
-      this.EVNEX_BASE_URL =
-        baseUrlEnv && baseUrlEnv.length > 0
-          ? baseUrlEnv
-          : "https://client-api.evnex.io";
-    }
+    // For string fields, undefined overrides fall back to env/default.
+    const baseUrlOverride =
+      overrides && "EVNEX_BASE_URL" in overrides ? overrides.EVNEX_BASE_URL : undefined;
+    const baseUrlEnv = process.env["EVNEX_BASE_URL"];
+    this.EVNEX_BASE_URL =
+      baseUrlOverride ?? (baseUrlEnv && baseUrlEnv.length > 0
+        ? baseUrlEnv
+        : "https://client-api.evnex.io");
 
-    if (overrides?.EVNEX_COGNITO_USER_POOL_ID !== undefined) {
-      this.EVNEX_COGNITO_USER_POOL_ID = overrides.EVNEX_COGNITO_USER_POOL_ID;
-    } else {
-      const poolIdEnv = process.env["EVNEX_COGNITO_USER_POOL_ID"];
-      this.EVNEX_COGNITO_USER_POOL_ID =
-        poolIdEnv && poolIdEnv.length > 0
-          ? poolIdEnv
-          : "ap-southeast-2_zWnqo6ASv";
-    }
+    const poolIdOverride =
+      overrides && "EVNEX_COGNITO_USER_POOL_ID" in overrides
+        ? overrides.EVNEX_COGNITO_USER_POOL_ID
+        : undefined;
+    const poolIdEnv = process.env["EVNEX_COGNITO_USER_POOL_ID"];
+    this.EVNEX_COGNITO_USER_POOL_ID =
+      poolIdOverride ?? (poolIdEnv && poolIdEnv.length > 0
+        ? poolIdEnv
+        : "ap-southeast-2_zWnqo6ASv");
 
-    if (overrides?.EVNEX_COGNITO_CLIENT_ID !== undefined) {
-      this.EVNEX_COGNITO_CLIENT_ID = overrides.EVNEX_COGNITO_CLIENT_ID;
-    } else {
-      const clientIdEnv = process.env["EVNEX_COGNITO_CLIENT_ID"];
-      this.EVNEX_COGNITO_CLIENT_ID =
-        clientIdEnv && clientIdEnv.length > 0
-          ? clientIdEnv
-          : "rol3lsv2vg41783550i18r7vi";
-    }
+    const clientIdOverride =
+      overrides && "EVNEX_COGNITO_CLIENT_ID" in overrides
+        ? overrides.EVNEX_COGNITO_CLIENT_ID
+        : undefined;
+    const clientIdEnv = process.env["EVNEX_COGNITO_CLIENT_ID"];
+    this.EVNEX_COGNITO_CLIENT_ID =
+      clientIdOverride ?? (clientIdEnv && clientIdEnv.length > 0
+        ? clientIdEnv
+        : "rol3lsv2vg41783550i18r7vi");
 
-    if (overrides?.EVNEX_ORG_ID !== undefined) {
+    // ORG_ID is allowed to be undefined, so explicit undefined overrides win
+    if (overrides && "EVNEX_ORG_ID" in overrides) {
       this.EVNEX_ORG_ID = overrides.EVNEX_ORG_ID;
     } else {
       const orgIdEnv = process.env["EVNEX_ORG_ID"];
