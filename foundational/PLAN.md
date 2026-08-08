@@ -32,11 +32,25 @@ dependency graph allows.
 
 ### Open decisions (resolve before Wave 4 / D4)
 
-1. **npm package name.** Preferred `evnex`; fall back to `evnex-client` or a
-   scoped `@<org>/evnex` if taken. Placeholder used throughout: `evnex`.
-2. **Initial version.** Recommend `0.1.0` with `PARITY.md` recording
+1. **Initial version.** Recommend `0.1.0` with `PARITY.md` recording
    "parity target: python-evnex 0.7.0", rather than mirroring `0.7.0` and
    implying a shared release history.
+
+The npm package name is **`evnex`** (confirmed available; if it turns out to be
+taken, `evnex-client` or a scoped name is a late, low-cost swap).
+
+### Downstream consumer
+
+[`brianramseyau/ev-charging-log`](https://github.com/brianramseyau/ev-charging-log)
+is the first consumer of this package. It currently carries its own independent
+TypeScript implementation of the same API (`src/lib/server/evnex-client.ts`,
+`evnex-auth.ts`) built against a **live account**, and its findings are folded
+into this plan — see §10. Two consequences:
+
+- A live account is available for verification, which materially de-risks the
+  SRP work (§8, risk 1) and the "no end-to-end testing" problem (§8, risk 7).
+- Wave 4 gains **D5**, which swaps this package into that project and proves
+  parity against real hardware before release.
 
 ---
 
@@ -355,7 +369,7 @@ which is what Cognito's server implementation expects.
 
 ### 4.1 Shape
 
-23 agent roles across 5 waves, with up to **10 running concurrently**. The
+24 agent roles across 5 waves, with up to **10 running concurrently**. The
 dependency graph is deliberately shallow: Wave 0 produces compile-time contracts
 so that Wave 1's ten agents never block on each other.
 
@@ -371,8 +385,8 @@ Wave 2  ┌───┴───────────────────
 Wave 3  ┌───┴────────────────────┐                         (4 agents, parallel)
         C1 C2 C3 C4
             │
-Wave 4  ┌───┴────────────────────┐                         (4 agents, parallel)
-        D1 D2 D3 D4
+Wave 4  ┌───┴───────────────────────┐                      (5 agents, parallel)
+        D1 D2 D3 D4 D5
 
         INT Integrator ─────────────────────────────────  (standing, all waves)
 ```
@@ -515,9 +529,17 @@ forward deliberately.
 `register` → `rawRegister` alias, and the shared `toJson()` helper described in
 §2.6 (which A9's fixture tests and every CLI `--json` path consume).
 
+**⚠ Required divergence — read §10.1 before writing `EvnexChargePointLoadSchedule`.**
+`timezone` is **`.nullish()`**, not required. The upstream model marks it
+required and the live API does not send it, which breaks three Python methods.
+Add a code comment pointing at §10.1 so nobody "restores parity" later.
+
 **Acceptance.** `toJson()` round-trips a fully populated charge point to output
 byte-identical to Python's `model_dump(mode="json")` for the shared fixtures.
 A user payload with no `name` validates (mirrors `test_user_without_name_validates`).
+A load-schedule payload **with no `timezone`** parses successfully — the
+regression test for §10.1, and the one test in this brief that intentionally
+fails against Python's behaviour.
 
 ---
 
@@ -541,9 +563,21 @@ and carries the optional `supplyActivePower` (present only when a power sensor
 is installed) — the CLI's grid-power display depends on distinguishing absent
 from zero.
 
+**Also owns, per §10.3–10.4:**
+- `sessionEnergyWh(session): number | null` — the authoritative meter-delta
+  energy figure, with the `totalEnergyUsage` / `totalPowerUsage` trade-off
+  documented in its TSDoc.
+- `OBSERVED_SESSION_STATUSES` as a `const` tuple. The parsed `sessionStatus`
+  type stays `string` — do **not** turn it into a strict enum; an unobserved
+  value must not throw.
+- TSDoc on `EvnexChargePointDetail.timeZone` noting it is the authoritative
+  IANA zone and is absent from the list endpoint (§10.2).
+
 **Acceptance.** Tests mirroring `test_connector_meter_exposes_supply_active_power`
 and `test_connector_meter_without_power_sensor`. The generic factory type-infers
-correctly for `EvnexChargePointDetail`.
+correctly for `EvnexChargePointDetail`. For `sessionEnergyWh`: `meterStop`
+absent → `null`; `meterStart: 0` → a real reading, **not** treated as absent
+(the §10.3 falsy trap); no `transaction` → `null`.
 
 ---
 
@@ -567,7 +601,24 @@ export function createSrpClient(poolName: string): {
 Highest-risk component in the port; it is deliberately isolated so it can be
 tested exhaustively without any AWS involvement.
 
+**Differential oracle — the primary mitigation for §8 risk 1.** `ev-charging-log`
+proves `amazon-cognito-identity-js` completes SRP against this exact pool from
+Node (§10.7). Exploit that as a **devDependency-only test oracle**: pin the
+client secret `a`, run both implementations over identical inputs, and assert
+our `PASSWORD_CLAIM_SIGNATURE` matches theirs byte-for-byte.
+
+Prefer capturing the value the library actually puts on the wire — drive
+`CognitoUser.authenticateUser` against a stubbed transport and read the emitted
+`ChallengeResponses` — over importing its internal `AuthenticationHelper`, which
+is not part of its public surface and may move. Either way this stays entirely
+offline and adds **no runtime dependency**.
+
+This converts "unverifiable until someone tries a real account" into a unit test.
+Land it in Wave 1, not Wave 4.
+
 **Acceptance.**
+- The differential oracle test passes against `amazon-cognito-identity-js` for
+  at least three pinned input sets.
 - Known-answer tests: with `a`, `B`, `salt` and the clock all pinned, the
   derived `signature` matches a fixture vector.
 - A dedicated test for the timestamp format asserting a non-padded day
@@ -590,9 +641,20 @@ SDK errors per §3.2 into a `CognitoError` carrying `{ name, message }` for the
 caller's own mapping. Depends on A5's `createSrpClient` — code against its
 signature from the F0 stub; do not wait for A5 to land.
 
+**Escape hatch.** This adapter is deliberately the only module that knows how
+tokens are obtained, and it leaks no SDK types. That is what makes the §8 risk-1
+fallback cheap: if the live smoke test (§9.9) shows our SRP failing, the
+handshake can be swapped to `amazon-cognito-identity-js` — proven working
+against this pool from Node (§10.7) — behind this same interface, without
+touching `session.ts`, `account.ts`, `api.ts` or the CLI. If that swap is ever
+made, remember the in-memory `ICognitoStorage` shim: the library defaults to
+`localStorage`, which does not exist server-side.
+
 **Acceptance.** Every operation tested with `aws-sdk-client-mock`. The
 `NEW_PASSWORD_REQUIRED` challenge path is covered. No `@aws-sdk/*` type appears
-in any exported signature.
+in any exported signature — verified by a test that type-checks the module's
+public surface in isolation, since this property is what the escape hatch
+depends on.
 
 ---
 
@@ -632,10 +694,17 @@ from `evnex/api.py`, and `EvnexHttpxAuth` from `evnex/auth.py`.
 
 **Details.**
 - `transport.ts`: base-URL joining, the three common headers
-  (`Accept`, `content-type`, `User-Agent: evnex-ts/<version>`), timeout →
-  `EvnexTimeoutError`, and JSON parsing.
-- `authFlow.ts`: inject `Authorization: <accessToken>` (note: **no `Bearer`
-  prefix** — the API takes the bare token, as in the original), and on a 401
+  (`Accept`, `content-type`, `User-Agent: evnex/<version>`), timeout →
+  `EvnexTimeoutError`, and JSON parsing. Capture `x-correlation-id` onto
+  `EvnexHttpError.correlationId` (§10.6). Error *messages* carry status, path
+  and correlation id only — the raw response body stays on `cause` and never
+  reaches a user-facing string, since error payloads can echo request details
+  back.
+- `authFlow.ts`: inject `Authorization: <accessToken>` — **the bare token, no
+  `Bearer` prefix**, and the *access* token, never the id token. Confirmed live
+  by two independent implementations (§10.5); carry a comment saying so at the
+  call site, because this is precisely the kind of thing a future contributor
+  "fixes" to look more standard. Then on a 401
   call `forceRefresh({ staleAccessToken })` and resend **once**. A 401 after
   that becomes `ReauthenticationRequiredError`. The comment in the original
   explains why the single resend is safe even for command endpoints; carry it over.
@@ -646,7 +715,9 @@ from `evnex/api.py`, and `EvnexHttpxAuth` from `evnex/auth.py`.
 **Acceptance.** Delay distribution test asserting the uniform-over-window draw
 and the 5-attempt cap. 401→refresh→resend covered, including the
 "still 401 after refresh" path. Timeout produces `EvnexTimeoutError`, not a raw
-`AbortError`.
+`AbortError`. An explicit test asserting the `Authorization` value has **no**
+`Bearer ` prefix. `correlationId` is populated from the response header and
+appears in `EvnexHttpError.message`, while the response body does not.
 
 ---
 
@@ -700,9 +771,16 @@ INT early, since this module has the most downstream readers.
 - `format.ts`: `kW()`, `kWh()`, `formatDateTime()`, `formatPeriod()`,
   `printTable()`. `printTable` pads to the max cell width per column and joins
   with two spaces — match it exactly so output diffs cleanly against Python's.
+  **`formatDateTime` must use `Intl.DateTimeFormat.formatToParts()` with an
+  explicit `hourCycle: "h23"`** — never `.format()` (locale-ordered, and
+  12-hour by default, which turns `00:30` into `12:30`) and never
+  `.toISOString().slice(...)` (reads the UTC day, moving evening sessions onto
+  the wrong date). Both mistakes are live-observed; see §10.8.
 
 **Acceptance.** Token cache file mode asserted as `0600` on both create and
-overwrite. `--otp` proven single-use. Formatter tests pinned to a fixed `TZ`.
+overwrite. `--otp` proven single-use. Formatter tests pinned to a fixed `TZ`,
+including one half-hour-offset zone (`Australia/Adelaide`) and one case whose
+local date differs from its UTC date.
 
 ---
 
@@ -930,7 +1008,7 @@ signed-in identity, preferring `email` then `cognito:username`.
 
 ---
 
-### Wave 4 — Verification and release *(4 agents, parallel)*
+### Wave 4 — Verification and release *(5 agents, parallel)*
 
 ---
 
@@ -989,6 +1067,44 @@ publish metadata, `.npmignore`/`files`.
 
 ---
 
+#### **D5 — Downstream validation**
+
+**Owns.** `docs/downstream-validation.md`. Writes no `src/` code; files defects
+against the owning agent instead.
+
+**Mission.** Prove the package works in a real consumer against real hardware —
+the only check that can catch a wrong SRP handshake, a wrong envelope shape, or
+an over-tight schema.
+
+**Method.** `npm pack` this package, install the tarball into a scratch branch of
+[`ev-charging-log`](https://github.com/brianramseyau/ev-charging-log), and
+replace its hand-rolled `src/lib/server/evnex-client.ts` and `evnex-auth.ts`
+with calls into it. That project already has an independent implementation of
+the same endpoints and a live account, so the swap is a genuine A/B: for one
+poll cycle, run both paths and diff the results.
+
+**Checklist.**
+1. `EvnexAuth` signs in via our SRP against the live pool. *(Kills §8 risk 1.)*
+2. Refresh from a stored refresh token alone succeeds.
+3. `getOrgChargePoints`, `getChargePointDetailV3` and `getChargePointSessions`
+   parse **live** responses with no `ZodError`.
+4. Sessions match `fetchSessions`'s output field-for-field after normalisation —
+   ids, `startDate`, `sessionStatus`, and energy.
+5. A live response containing a load schedule parses — the §10.1 regression,
+   against real data rather than a fixture.
+6. `evnex status`, `charge-points list` and `sessions list` run against the real
+   account and render plausible output.
+
+Any schema too tight for a live response is a **defect in the owning agent's
+module**, not something to patch downstream. Report it; do not fix it locally.
+
+**Acceptance.** All six pass, with the live payloads (credentials and tokens
+redacted) added to `test/support/` as fixtures so the next regression is caught
+offline. Do not merge the scratch branch of `ev-charging-log` — it is a test
+harness, and the real migration is that project's own call, on its own schedule.
+
+---
+
 #### **INT — Integrator** *(standing, all waves)*
 
 Merge completed agent branches into `claude/typescript-evnex-port-zpbiqu`, run
@@ -1026,7 +1142,9 @@ the wave gate, arbitrate any cross-file change request, and maintain the
 
 **Dev:** `typescript`, `vitest`, `@vitest/coverage-v8`, `msw`,
 `aws-sdk-client-mock`, `eslint`, `typescript-eslint`, `prettier`, `tsup`,
-`@types/node`.
+`@types/node`, and `amazon-cognito-identity-js` — **test-only**, as A5's
+differential SRP oracle (§10.7). It must never appear in `dependencies`; a CI
+check asserts it stays out of the published package's runtime graph.
 
 ---
 
@@ -1034,14 +1152,16 @@ the wave gate, arbitrate any cross-file change request, and maintain the
 
 | # | Risk | Impact | Mitigation |
 |---|---|---|---|
-| 1 | **SRP implementation is subtly wrong** — the timestamp format, `PAD()`, or the HKDF info string. Fails only against live Cognito, and always as an opaque `NotAuthorizedException`. | Sign-in never works | Dedicated agent (A5) landing in Wave 1; known-answer vectors; a standalone timestamp test; 100% coverage requirement; a manual live smoke test before release |
+| 1 | **SRP implementation is subtly wrong** — the timestamp format, `PAD()`, or the HKDF info string. Fails only against live Cognito, and always as an opaque `NotAuthorizedException`. | Sign-in never works | **Substantially mitigated.** (a) Differential test oracle against `amazon-cognito-identity-js`, which is proven working against this exact pool from Node (§10.7) — turns the risk into a Wave-1 unit test; (b) D5 validates against a live account before release; (c) A6's adapter leaks no SDK types, so swapping the handshake to that library is a contained change if it still fails |
 | 2 | Cognito **device tracking** enabled on the pool would issue a `DEVICE_SRP_AUTH` challenge this port does not implement | Sign-in fails for affected accounts | Detect and raise a clear, named error rather than a generic failure; document in `PARITY.md` |
 | 3 | `pycognito`'s **JWKS token verification** has no free equivalent | Behavioural difference vs. Python | Port with `jose` behind a `verifyTokens` flag; if dropped, document explicitly |
 | 4 | **Retry semantics** silently mis-ported (full-jitter instead of uniform, or 5 retries instead of 5 attempts) | Thundering herd against the API | Distribution test in A8; §2.5 states the formula literally |
 | 5 | **Schema strictness** — a `.strict()` Zod object turns a benign API field addition into a hard failure | Outage on an upstream change | §2.2 forbids `.strict()`; D1 audits |
 | 6 | **CLI output drift** from the Python CLI breaks anyone parsing it | Silent breakage for scripted users | Shared fixtures; byte-comparison tests on `--json`; `printTable` spec pinned in A10 |
-| 7 | **No live account** for end-to-end verification | Integration bugs reach release | All fixtures lifted verbatim from the Python tests; ship `0.1.0` as a pre-release and ask for community verification |
+| 7 | ~~No live account for end-to-end verification~~ — **resolved.** `ev-charging-log` has one | — | D5 owns live verification; its findings become offline fixtures |
 | 8 | **Agent file collision** despite disjoint ownership | Lost work at merge | INT merges continuously; a conflict is treated as a plan defect and escalated, not hand-resolved |
+| 9 | **More upstream schema bugs like §10.1.** One required-but-absent field was found by the only other implementation that has run against real data; a library validating strictly against models built from partial observations probably has others, in the paths neither project exercises | `ZodError` on a response that is actually fine | Prefer `.nullish()` wherever the Python model's requiredness is not corroborated by a captured fixture; §2.2's no-`.strict()` rule; D5 exercises live responses; every such divergence is a `PARITY.md` row with its evidence |
+| 10 | **Divergence from `ev-charging-log`'s own findings** as that project evolves | Two implementations drift apart again | §10 cites its `EVNEX-INTEGRATION-PLAN.md` section numbers so claims stay traceable; D5 re-runs the A/B diff before each release |
 
 ---
 
@@ -1051,7 +1171,7 @@ the wave gate, arbitrate any cross-file change request, and maintain the
    Node 20, 22 and 24.
 2. Zero `TODO(` markers in `src/`.
 3. `PARITY.md`: every Python public symbol `✅` or `🔄`, with a note on each `🔄`;
-   every `❌` justified.
+   every `❌` justified. The §10 divergences are present with their evidence.
 4. `test/PARITY.md`: all 65 Python tests mapped; ≥90% line coverage overall,
    100% on `src/auth/srp.ts` and `src/http/retry.ts`.
 5. All five examples ported and type-checking.
@@ -1059,12 +1179,191 @@ the wave gate, arbitrate any cross-file change request, and maintain the
    Brian Thorne and `hardbyte/python-evnex` present and prominent.
 7. `LICENSE` (Apache-2.0) and `NOTICE` preserve upstream attribution.
 8. A clean-tarball install runs `npx evnex --version`.
-9. Manual live smoke test of `evnex auth login` and `evnex status` against a real
-   account — the only check that can actually prove the SRP implementation.
+9. **D5's six-point downstream validation passes** against a live account via
+   `ev-charging-log`, and its captured live payloads are checked in as fixtures.
+   This supersedes a hand-run smoke test: it is the only check that can actually
+   prove the SRP handshake and the schemas against real data.
+10. An upstream issue is filed against `hardbyte/python-evnex` for the §10.1
+    `timezone` bug, with the live evidence. Courtesy, not a blocker — but the
+    finding came from his API knowledge and belongs back with it.
 
 ---
 
-## 10. Appendix — module port map
+## 10. Live-verified API findings
+
+Everything in this section was confirmed against a **live Evnex account** (2026-08)
+by [`ev-charging-log`](https://github.com/brianramseyau/ev-charging-log)'s
+independent implementation, and is documented in its
+`foundational/EVNEX-INTEGRATION-PLAN.md` §4. Where it contradicts `python-evnex`,
+**the live observation wins** — it is the only evidence either project has.
+
+### 10.1 `EvnexChargePointLoadSchedule.timezone` — an upstream bug to fix, not port
+
+`python-evnex` declares:
+
+```python
+class EvnexChargePointLoadSchedule(BaseModel):
+    duration: int
+    enabled: bool
+    timezone: str          # ← required, no default
+    units: str
+    chargingProfilePeriods: list[EvnexChargeProfileSegment]
+```
+
+**The real response does not carry `timezone`.** Because the field is required
+with no default, pydantic raises `ValidationError` on every response containing
+a load schedule — which means three methods are broken upstream:
+
+- `get_charge_point_detail` (v2, deprecated) — `EvnexChargePointDetail.loadSchedule`
+- `set_charger_load_profile`
+- `set_charge_point_schedule`
+
+Corroborating evidence in the original: `set_charge_point_schedule` builds its
+request body with `# "timezone": timezone` commented out, suggesting the author
+hit the same ambiguity from the write side.
+
+**Port decision.** `timezone` is `.nullish()` in `src/schema/chargePoints.ts`.
+This is a **deliberate divergence, not a port error** — record it in `PARITY.md`
+as `🔄 adapted` with this reasoning, and do not let a later parity audit
+"correct" it back to required.
+
+**Upstream.** Worth reporting to `hardbyte/python-evnex` as a bug with the live
+evidence attached; the fix there is the same one-line change.
+
+### 10.2 The authoritative timezone is `data.attributes.timeZone` on the v3 detail
+
+The IANA timezone (e.g. `Pacific/Auckland`, `Australia/Melbourne`) lives on
+`GET /charge-points/{id}` at `data.attributes.timeZone`, a sibling of `name` /
+`serial` / `model`. `python-evnex` models this correctly on the v3
+`EvnexChargePointDetail` — **that** field is real and stays required.
+
+The **charge-points list** endpoint carries no `timeZone` at all, so a consumer
+that needs one must fetch the detail per charge point. Document this explicitly
+in the `getOrgChargePoints` TSDoc: it is a round trip consumers will otherwise
+discover the hard way.
+
+Note the two endpoints have genuinely different envelope shapes, which
+`python-evnex` gets right and which a reviewer may mistake for an inconsistency:
+
+| Endpoint | Envelope |
+|---|---|
+| `GET /v2/apps/organisations/{org}/charge-points` | flat objects under `data.items` |
+| `GET /charge-points/{id}` | JSON:API — `data.attributes.{…}` |
+| `GET /charge-points/{id}/sessions` | JSON:API — `data[].attributes.{…}` |
+
+The missing `/v2/apps` prefix on the latter two is **real**, not a
+transcription slip. Confirmed independently by both implementations.
+
+### 10.3 Session energy: prefer the meter delta
+
+`EvnexChargePointSessionAttributes` offers three energy-ish fields. Live findings:
+
+| Field | Verdict |
+|---|---|
+| `transaction.meterStart` / `meterStop` | **Watt-hours. Authoritative.** `kWh = (meterStop − meterStart) / 1000` |
+| `totalEnergyUsage` | An *object*, not a number; unit undocumented. Do not use as a kWh figure. |
+| `totalPowerUsage` | Deprecated in Evnex's Enterprise schema. Avoid in new code. |
+
+Three traps, all of which cost `ev-charging-log` real debugging:
+
+- **`meterStop` absent means "still charging"** — not zero, not an error.
+- **`0` is a legitimate register reading.** Test for field *presence*, never
+  truthiness. A `!meterStart` check is a bug.
+- **`startDate` and `sessionStatus` are both genuinely optional** on the
+  consumer API, unlike Evnex's Enterprise schema. `python-evnex` already types
+  them nullable; keep it that way and resist "tightening" them.
+
+**Port decision.** The CLI keeps rendering `totalPowerUsage` so `evnex sessions
+list` output stays byte-identical to Python's (§2.6 parity). Additionally export
+a documented helper:
+
+```ts
+/** Session energy in watt-hours from the meter delta — the authoritative figure.
+ *  `null` while charging is still in progress (no `meterStop` yet). */
+export function sessionEnergyWh(session: EvnexChargePointSession): number | null;
+```
+
+Owned by **A4**, with the trade-off spelled out in its TSDoc.
+
+### 10.4 Observed `sessionStatus` values
+
+`Pending | Authorized | Active | Closed | Completed | Invalid`.
+
+Keep the parsed type as `string` (tolerant — an unobserved value must not throw),
+but export the observed set as a `const` for consumers to narrow against:
+
+```ts
+export const OBSERVED_SESSION_STATUSES = ["Pending", "Authorized", "Active",
+  "Closed", "Completed", "Invalid"] as const;
+```
+
+Consumers testing for a terminal state should test `=== "Invalid"`, never
+`!== "Completed"` — a status-less session is common and must not be treated as
+invalid.
+
+### 10.5 The bare `Authorization` header — confirmed twice
+
+`Authorization: <accessToken>`, **never** `Authorization: Bearer <token>`, and
+the **access** token, never the id token. Both implementations independently
+confirm this, and `ev-charging-log` calls it "the single most likely cause of an
+otherwise-inexplicable 401."
+
+A8 must carry a comment at the header-setting call site saying so, and a test
+asserting the absence of the `Bearer` prefix. This is the kind of detail a
+future contributor "fixes" to look more standard.
+
+### 10.6 `x-correlation-id`
+
+Responses carry an `x-correlation-id` header, which `python-evnex` ignores.
+**A8 captures it onto `EvnexHttpError.correlationId`** — it is the only handle
+support has on a specific failed request. A pure addition; record as an
+enhancement in `PARITY.md`.
+
+Related, and worth copying: `ev-charging-log` deliberately never puts a raw
+error-response body into a user-facing message, on the grounds that some APIs
+echo request details (potentially including headers) back in error payloads.
+`EvnexHttpError.message` gets status + path + correlation id; the body stays on
+the `cause`.
+
+### 10.7 `amazon-cognito-identity-js` SRP works in Node against this pool
+
+`ev-charging-log` signs in and refreshes successfully using
+`amazon-cognito-identity-js` (`USER_SRP_AUTH` / `REFRESH_TOKEN_AUTH`) from a
+Node server, with one gotcha: the library targets browsers and defaults to
+`localStorage`, so it needs a small in-memory `ICognitoStorage` shim.
+
+Its plan also records the reason **not** to take the `USER_PASSWORD_AUTH`
+shortcut: `ALLOW_USER_PASSWORD_AUTH` is a per-app-client setting that is
+commonly off, the client belongs to Evnex, and SRP is *demonstrably* permitted
+because the mobile app and `python-evnex` both use it. That confirms the
+option-3 dead end anticipated in §0.
+
+This is load-bearing for §8 risk 1 — see the differential-oracle mitigation in
+agent A5's brief, and the fallback in A6's.
+
+### 10.8 Local-time formatting
+
+`ev-charging-log` documents two specific ways to get UTC → local conversion
+wrong, both of which it hit:
+
+- `.toISOString().slice(0, 10)` reads the **UTC** day, silently moving an
+  evening local session onto the wrong calendar date whenever the offset crosses
+  a UTC day boundary.
+- `Intl.DateTimeFormat(...).format()` is locale-ordered (`en-AU` is day-first),
+  and defaults to a 12-hour clock — so `00:30` comes back as hour `12` and
+  stores as `12:30`, relocating a midnight charge to midday.
+
+The fix is `formatToParts()` with an explicit `hourCycle: "h23"`.
+
+This applies directly to A10's `formatDateTime()`. Python's `_fmt_dt` uses
+`value.astimezone()` — the **host** timezone — so parity means formatting in the
+host zone, but the *mechanism* must be `formatToParts` + `h23`, and the tests
+must pin `TZ` and run at least one case in a half-hour offset zone
+(`Australia/Adelaide`) and one crossing a UTC day boundary.
+
+---
+
+## 11. Appendix — module port map
 
 | Python | Lines | TypeScript | Agent |
 |---|---|---|---|

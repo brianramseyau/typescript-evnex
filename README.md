@@ -248,6 +248,19 @@ in [`PARITY.md`](PARITY.md). The load-bearing ones:
   hand-written SRP implementation.
 - `pydantic` is replaced by `zod`; the deprecated `NotAuthorizedException`
   module alias is not carried over — catch `EvnexAuthError`.
+- **`EvnexChargePointLoadSchedule.timezone` is optional here.** The Python model
+  marks it required, but the live API does not send it, so validation fails on
+  any response carrying a load schedule. See
+  [`foundational/PLAN.md` §10.1](foundational/PLAN.md).
+- `EvnexHttpError` carries the response's `x-correlation-id`, which the Python
+  client discards. It is the only handle support has on a specific failed request.
+- A `sessionEnergyWh()` helper derives session energy from the meter delta —
+  the authoritative figure, in watt-hours. `totalEnergyUsage`'s unit is
+  undocumented and `totalPowerUsage` is deprecated in Evnex's Enterprise schema.
+
+The API observations behind these come from
+[`ev-charging-log`](https://github.com/brianramseyau/ev-charging-log), an
+independent implementation verified against a live account.
 
 ## Development
 
