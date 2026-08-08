@@ -6,6 +6,8 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["test/**/*.test.ts", "src/**/*.test.ts"],
+    // Pins TZ so nothing depends on the ambient zone — see vitest.setup.ts.
+    setupFiles: ["./vitest.setup.ts"],
     coverage: {
       provider: "v8",
       all: true,
