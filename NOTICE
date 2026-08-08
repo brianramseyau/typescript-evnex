@@ -1,0 +1,18 @@
+typescript-evnex
+Copyright 2026 typescript-evnex contributors
+
+This product is a TypeScript port of python-evnex.
+
+  python-evnex
+  https://github.com/hardbyte/python-evnex
+  Copyright Brian Thorne <brian@hardbyte.nz>
+  Licensed under the Apache License, Version 2.0
+
+The API surface, endpoint knowledge, response schemas, authentication flow,
+retry policy, and command line interface of this project are derived from that
+work. Substantial portions of the documentation and code comments are adapted
+from it, including the explanatory notes describing Evnex Cloud API behaviour
+that is not otherwise publicly documented.
+
+Neither this project nor python-evnex is affiliated with, endorsed by, or
+supported by Evnex Limited.
