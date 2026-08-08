@@ -4,9 +4,6 @@
  * `EvnexV3APIResponse[T]` becomes a factory function, per PLAN.md §5 (A4):
  * pydantic's `Generic[T]` has no direct Zod equivalent, so the envelope is
  * parameterised by constructing a fresh schema per attributes type.
- *
- * TODO(A4): implement/refine and add tests — confirm the factory type-infers
- * correctly for `EvnexChargePointDetail`.
  */
 
 import { z } from "zod";

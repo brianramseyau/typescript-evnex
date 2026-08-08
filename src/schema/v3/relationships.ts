@@ -1,7 +1,6 @@
 /**
  * JSON:API relationship schemas — ported from `evnex/schema/v3/relationships.py`.
  *
- * TODO(A4): implement/refine and add tests.
  */
 
 import { z } from "zod";

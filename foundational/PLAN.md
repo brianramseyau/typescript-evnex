@@ -341,6 +341,10 @@ Semantics to reproduce in `src/http/retry.ts`:
   `Math.random() * Math.min(60_000, 1000 * 2 ** n)` — a *uniform* draw across
   the whole window, not full backoff with jitter added on top. Getting this
   wrong is the classic tenacity mis-port.
+  **`n` counts the attempt that just failed, so it runs 1…4**: the first attempt
+  fails and the delay uses `n = 1`; the fourth fails with `n = 4`; the fifth runs
+  with no further delay. It is *not* the index of the upcoming attempt (2…5) —
+  an easy off-by-one that halves or doubles every wait.
 - `reraise: true` — surface the underlying error, never a wrapper.
 - Never-retryable, always: `EvnexValidationError`, `EvnexAuthError`,
   `EvnexConfigurationError`. Plus per-call additions.
@@ -432,7 +436,11 @@ modular arithmetic.
 
 - `N` = the 3072-bit safe prime from RFC 5054 Appendix A; `g` = 2.
 - `k = SHA256(PAD(N) ‖ PAD(g))`.
-- Client secret `a` = 128 random bytes; `A = g^a mod N` (redraw if `A mod N == 0`).
+- Client secret `a` = 128 random bytes; `A = g^a mod N`. **Throw if `A mod N == 0`**
+  — earlier drafts of this plan said "redraw", but both reference implementations
+  (`pycognito`'s `calculate_a` and `amazon-cognito-identity-js`) raise instead, and
+  matching them costs nothing. The condition is unreachable anyway: `N` is prime and
+  `g = 2` is coprime to it, so this is a defensive assertion, not a retry path.
 - Send `InitiateAuth(USER_SRP_AUTH)` with `AuthParameters: { USERNAME, SRP_A: A.toString(16) }`.
 - Server returns `SRP_B`, `SALT`, `SECRET_BLOCK`, `USER_ID_FOR_SRP` in
   `ChallengeParameters`.

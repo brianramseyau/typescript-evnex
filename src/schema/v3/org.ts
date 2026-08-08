@@ -1,7 +1,6 @@
 /**
  * v3 organisation connector summary — ported from `evnex/schema/v3/org.py`.
  *
- * TODO(A4): implement/refine and add tests.
  */
 
 import { z } from "zod";

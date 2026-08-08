@@ -1,7 +1,6 @@
 /**
  * v3 location schemas — ported from `evnex/schema/v3/locations.py`.
  *
- * TODO(A4): implement/refine and add tests.
  */
 
 import { z } from "zod";

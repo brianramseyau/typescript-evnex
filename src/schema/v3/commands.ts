@@ -1,7 +1,6 @@
 /**
  * v3 command response schema — ported from `evnex/schema/v3/commands.py`.
  *
- * TODO(A4): implement/refine and add tests.
  */
 
 import { z } from "zod";

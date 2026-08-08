@@ -1,10 +1,6 @@
 /**
  * Charge point schemas (v3 / JSON:API envelope) — ported from
  * `evnex/schema/v3/charge_points.py`.
- *
- * TODO(A4): implement/refine and add tests, including
- * `test_connector_meter_exposes_supply_active_power` and
- * `test_connector_meter_without_power_sensor` analogues.
  */
 
 import { z } from "zod";
