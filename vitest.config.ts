@@ -16,7 +16,6 @@ export default defineConfig({
         "examples/**",
         "*.config.ts",
         "vitest.setup.ts",
-        "**/*.d.ts",
       ],
       thresholds: {
         lines: 100,
