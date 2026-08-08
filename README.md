@@ -282,9 +282,12 @@ independent implementation verified against a live account.
 npm ci
 npm run lint
 npm run typecheck
-npm test
+npm test              # 100% line and branch coverage, enforced per-file
 npm run build
 ```
+
+Coverage thresholds are set to 100 per-file and are part of CI. Exclusions
+require an inline comment naming a concrete reason and are audited.
 
 See [`foundational/PLAN.md`](foundational/PLAN.md) for the architecture, the
 porting rules every contributor should follow, and the module-by-module map back

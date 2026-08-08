@@ -422,8 +422,9 @@ Wave 4  ┌───┴───────────────────
 - **INT (Integrator)** merges each agent's branch into
   `claude/typescript-evnex-port-zpbiqu` as it completes, and runs the wave gate.
 - A wave gate is: `tsc --noEmit` clean, `eslint` clean, `vitest run` green,
-  and every acceptance criterion in the wave's agent briefs checked off. The
-  next wave does not launch until the gate passes.
+  **coverage at 100% per-file (§6.1)**, and every acceptance criterion in the
+  wave's agent briefs checked off. The next wave does not launch until the gate
+  passes.
 
 ### 4.3 The contract-first trick
 
@@ -452,8 +453,11 @@ Every stub carries a `TODO(<agent-id>)` marker naming its owner. Consequences:
 2. **Read the Python source.** Every agent brief names its source files. Port
    the behaviour, including the comments that explain *why* — several of them
    document API quirks that are not otherwise discoverable.
-3. **Port the tests too.** Test files are part of your ownership, not a separate
-   agent's job (§6 lists which tests belong to whom).
+3. **Port the tests too, and own your coverage.** Test files are part of your
+   ownership, not a separate agent's job (§6.2 lists which tests belong to
+   whom). You leave your files at **100% line and branch coverage** — it is a
+   wave gate, not a Wave-4 cleanup. Check §6.3 first: if your module is listed
+   there, upstream has no tests to port and yours are original work.
 4. **No `any`.** `unknown` + a Zod parse, or a precise type.
 5. **No new runtime dependencies.** The library core is `zod` plus the AWS
    Cognito SDK, full stop (§0). If you reach for a package, check whether Node
@@ -483,7 +487,8 @@ versions of every file in §1** with complete type signatures and
 
 **Deliverables.**
 1. Repo skeleton; `npm ci && npm run build && npm run lint && npm test` all
-   succeed on an empty test suite.
+   succeed on an empty test suite, with **coverage thresholds already set to
+   100 per-file** (§6.1) so the bar is never ratcheted up later.
 2. Every `src/**` file exists with its full exported signature set, derived from
    the Python source, each body `throw new Error("TODO(<agent-id>)")`.
 3. `src/index.ts` exporting the intended public surface.
@@ -536,8 +541,16 @@ Python E7 branch sets `power: "7"` (not `"7 kW"`) — that asymmetry is in the
 original and is preserved; flag it in `PARITY.md` as an upstream quirk carried
 forward deliberately.
 
+**⚠ No upstream tests exist for this module — it is 0% covered (§6.3).** Your
+tests are the first verification this logic has ever had. If a branch looks
+wrong, it may genuinely be wrong rather than a porting slip: report it to INT
+as an upstream finding rather than silently correcting *or* faithfully copying
+it.
+
 **Acceptance.** Table-driven tests covering `E2C-25VO`, `E2-18SN`, `X7-T2S-G`,
-`X22-P1T-W`, `E7-T2S-WC`, plus malformed inputs for every fallback branch.
+`X22-P1T-W`, `E7-T2S-WC`, plus malformed inputs for every fallback branch —
+100% line and branch, which for this module means every lookup-table miss and
+every `split` failure path.
 
 ---
 
@@ -817,6 +830,11 @@ INT early, since this module has the most downstream readers.
   `.toISOString().slice(...)` (reads the UTC day, moving evening sessions onto
   the wrong date). Both mistakes are live-observed; see §10.8.
 
+**⚠ `cli/_auth.py` is 52% covered upstream (§6.3)** — the token-cache writer,
+the QR rendering, and the OTP command path all lack tests there. The `0600`
+permission behaviour is security-relevant and entirely unverified upstream;
+treat it as original work, not a port.
+
 **Acceptance.** Token cache file mode asserted as `0600` on both create and
 overwrite. `--otp` proven single-use. Formatter tests pinned to a fixed `TZ`,
 including one half-hour-offset zone (`Australia/Adelaide`) and one case whose
@@ -935,6 +953,16 @@ the token rotation captured during `changePassword`.
 - Retry policy per method exactly as tabulated in §2.5.
 - `EvnexOptions` takes `{ auth, fetch?, config? }` — `fetch` is the injection
   point replacing "optionally pass in an httpx client".
+
+**⚠ 28% of `api.py` is untested upstream, and it is exactly the write surface**
+— every state-changing command plus every POST-command getter (§6.3). Those are
+also the methods carrying the hand-tuned non-retryable sets in §2.5, so the
+behaviour most expensive to get wrong is the least covered upstream. A retried
+`setChargePointOverride` resubmits a command to real hardware.
+
+Test the **retry policy** of each method explicitly, not just its happy path:
+assert that each exception listed as non-retryable in §2.5 is raised on the
+first attempt and never retried, and that a retryable failure is.
 
 **Acceptance.** One test per method asserting method, path, query, body and
 parsed return type against A9's injected stub `fetch`. Tests mirroring
@@ -1106,10 +1134,25 @@ and device tracking.
 
 **Owns.** `test/PARITY.md` + any gap-filling tests it writes.
 
-The Python suite has **65 tests** across 5 files. Produce a table mapping each to
-its TS counterpart, write the missing ones, and report coverage. Target: ≥90%
-line coverage on `src/`, 100% on `src/auth/srp.ts` and `src/http/retry.ts` —
-the two modules where a subtle error is silent and expensive.
+The Python suite has **115 test functions (150 cases)** across 4 files. Produce a
+table mapping each to its TS counterpart and write any that are missing.
+
+**Then audit the 100% gate (§6.1), which is the substantive half of this job.**
+Per-file thresholds mean the number is green by the time you start, so your work
+is proving it is *honest*:
+
+1. **Every `v8 ignore` justified.** Each needs a concrete reason; reject "hard
+   to test". Removing a bad exclusion and writing the test is in scope.
+2. **Hunt coverage-shaped-but-assertion-free tests.** A test that executes a
+   branch without asserting its outcome turns the gate green while proving
+   nothing. Mutation-spot-check the modules in §6.3 where no upstream test
+   exists: flip a comparison, invert a condition, and confirm something fails.
+3. **Branch coverage on the §6.3 blind spots specifically** — the command
+   methods' retry policies, `parseModel`'s fallbacks, the CLI auth handlers.
+   These have no upstream reference, so coverage is the only signal they have.
+4. **Confirm the negative-space tests exist**: error paths, timeout paths, the
+   "still 401 after refresh" path, and every non-retryable exception in §2.5
+   asserted as actually not retried.
 
 ---
 
@@ -1192,15 +1235,112 @@ the wave gate, arbitrate any cross-file change request, and maintain the
 
 ---
 
-## 6. Test-parity ledger
+## 6. Testing
 
-| Python test file | Tests | Owning agent(s) |
+### 6.1 Coverage target: 100%
+
+**100% line and branch coverage, enforced per-file**, not as a repo-wide
+average that lets a well-tested module subsidise a bare one.
+
+F0 configures this in `vitest.config.ts` from the very first commit:
+
+```ts
+coverage: {
+  provider: "v8",
+  all: true,                                   // count files no test imports
+  thresholds: { lines: 100, branches: 100, functions: 100, statements: 100,
+                perFile: true },
+}
+```
+
+Setting it at 100 on day one rather than ratcheting toward it matters: the
+threshold is only ever cheap to hold when it has never been broken. Every wave
+gate (§4.2) includes coverage, so a shortfall is caught by the agent that
+introduced it, while the code is still in their head — never as a Wave-4
+cleanup pass someone else inherits.
+
+**Exclusions** need an inline `/* v8 ignore next -- <reason> */` naming a
+concrete reason, and D2 audits every one. Legitimate: a genuinely
+unreachable defensive branch, or `webbrowser`/`process.exit` boundaries where
+the assertion belongs to the harness. Not legitimate: "hard to test", which
+almost always means the seam is in the wrong place.
+
+**One caveat, stated so the number does not become false confidence.** Coverage
+proves every line ran, not that any of them are right. `srp.ts` can reach 100%
+and still fail against live Cognito — a wrong timestamp format executes exactly
+the same lines as a right one. That is why §8 risk 1 is mitigated by a
+differential oracle (A5) and live validation (D5) *in addition to* coverage, not
+by coverage.
+
+### 6.2 Test-parity ledger
+
+Upstream has **115 test functions (150 cases with parametrisation)**, all
+passing. Ported tests are the floor, not the target — §6.3 is where the real
+work is.
+
+| Python test file | Test fns | Owning agent(s) |
 |---|---|---|
-| `tests/test_auth.py` | 9 classes | A7 (`TestTokenSet`, `TestAuthChallenge`), B1 (`TestInteractiveAuthentication`, `TestTokenLifecycle`, `TestTokenSetResumption`, `TestErrorSurfaces`), A8 (`TestTransport`), B2 (`TestMfaManagement`, `TestPasswordManagement`) |
-| `tests/test_cli.py` | 14 | C1, C2 |
-| `tests/test_cli_resources.py` | 44 | C3, C4, B3 |
-| `tests/test_schema.py` | 4 | A3, A4 |
+| `tests/test_auth.py` | 50 | A7 (`TestTokenSet`, `TestAuthChallenge`), B1 (`TestInteractiveAuthentication`, `TestTokenLifecycle`, `TestTokenSetResumption`, `TestErrorSurfaces`), A8 (`TestTransport`), B2 (`TestMfaManagement`, `TestPasswordManagement`) |
+| `tests/test_cli.py` | 19 | C1, C2 |
+| `tests/test_cli_resources.py` | 43 | C3, C4, B3 |
+| `tests/test_schema.py` | 3 | A3, A4 |
 | `tests/conftest.py` | fixtures | A9 |
+
+### 6.3 Where upstream has no tests to port
+
+Measured on `python-evnex` @ v0.7.0 (`pytest --cov=evnex`, 150 passed).
+Upstream configures **no coverage tooling at all** — not in `pyproject.toml`,
+CI, or pre-commit — so these gaps were invisible there.
+
+| Module | Coverage | Missed |
+|---|---|---|
+| `evnex/models.py` | **0%** | 50 / 50 |
+| `evnex/status.py` | **0%** | 13 / 13 |
+| `evnex/cli/_auth.py` | **52%** | 108 / 224 |
+| `evnex/api.py` | **72%** | 51 / 183 |
+| `evnex/cli/__init__.py` | 83% | 8 / 46 |
+| `evnex/auth.py` | 94% | 18 / 305 |
+| `evnex/cli/_resources.py` | 97% | 9 / 280 |
+| `evnex/schema/**` | 100% | 0 |
+| **Total** | **83%** | 257 / 1547 |
+
+Read that as a map of **where the port is flying blind**: everywhere else,
+"port the test" doubles as a correctness check against a known-good
+implementation. Here there is nothing to lean on, so the tests are original work
+and a ported bug would go unnoticed.
+
+Three concentrations, called out in the owning agents' briefs:
+
+**The entire write/command surface of `api.py` is untested** — every method that
+changes charger state, plus every POST-command getter:
+
+| Untested upstream | Owner |
+|---|---|
+| `set_charger_availability`, `enable_charger`, `disable_charger` | B3 |
+| `unlock_charger` | B3 |
+| `set_charger_load_profile`, `set_charge_point_schedule` | B3 |
+| `get_charge_point_solar_config`, `get_charge_point_override` | B3 |
+| `get_charge_point_status`, `get_charge_point_energy_meter_reading` | B3 |
+| `get_charge_point_detail` (v2), `get_charge_point_transactions` (v2) | B3 |
+| `get_org_summary_status` | B3 |
+| `_check_api_response` invalid-JSON path; version fallback | A8, B3 |
+
+Note these are the methods that carry the hand-tuned non-retryable exception
+sets in §2.5 — the behaviour most expensive to get wrong (a retried
+`set_override` resubmits a command to real hardware) is also the least covered
+upstream. B3 tests the retry policy of each explicitly, not just its happy path.
+
+**`parse_model` is 0% covered** — every E2/X/E7 branch and every `Unknown`
+fallback is unverified upstream, including the `power: "7"` vs `"7 kW"`
+asymmetry A2's brief already flags. A2's table-driven tests are the first
+verification this logic has ever had; if a case looks wrong, it may genuinely
+*be* wrong rather than a porting slip. Report such findings rather than
+silently "fixing" or faithfully copying them.
+
+**`cli/_auth.py` is 52%** — the token-cache writer, `signed_in_auth`, the QR
+rendering, and nearly every `cmd_*` handler. A10 and C2 write these from
+scratch. The `0600` cache-permission behaviour in particular is security-
+relevant and has no upstream test.
 
 ---
 
@@ -1268,8 +1408,10 @@ above and that nothing dev-only reaches the published runtime graph.
 2. Zero `TODO(` markers in `src/`.
 3. `PARITY.md`: every Python public symbol `✅` or `🔄`, with a note on each `🔄`;
    every `❌` justified. The §10 divergences are present with their evidence.
-4. `test/PARITY.md`: all 65 Python tests mapped; ≥90% line coverage overall,
-   100% on `src/auth/srp.ts` and `src/http/retry.ts`.
+4. `test/PARITY.md`: all 115 Python test functions mapped, and **100% line and
+   branch coverage per-file**, with every `v8 ignore` justified and audited by
+   D2. Upstream sits at 83% with no coverage tooling (§6.3); the port does not
+   inherit its blind spots.
 5. All five examples ported and type-checking.
 6. `README.md` complete, every sample compiling, and the acknowledgement of
    Brian Thorne and `hardbyte/python-evnex` present and prominent.
