@@ -33,21 +33,107 @@ dependency graph allows.
 
 ### Dependency policy
 
-**Anything modern Node already does, we do with Node.** No `axios` (native
-`fetch`), no `commander` (`node:util` `parseArgs`), no `jose` (`node:crypto`),
-no bundler (ESM-only, so `tsc` emits directly), no HTTP or AWS mocking library
-(both seams are already injectable). First-party SDKs are fine — hence
-`@aws-sdk/client-cognito-identity-provider`.
+**The concern is supply-chain surface, not purity.** Fewer packages in the
+runtime graph means fewer places a compromised release can land. That goal is
+served by *measuring* packages, not by reflexively avoiding them — and the
+measurements are counterintuitive.
 
-The **one deliberate exception is `zod`**. Node has no native runtime schema
-validation, and validated responses are much of what this package offers over
-hand-rolling a client; `python-evnex`'s pydantic models are the de facto API
-spec, so a structurally similar library keeps both the port and any future
-re-sync mechanical.
+Transitive package counts (`npm i --package-lock-only`, including the package
+itself), measured 2026-08:
 
-That leaves the library core at **two runtime dependencies**, with `qrcode` an
-optional peer that the CLI degrades gracefully without. Adding a third requires
-INT approval and a line in this section explaining why Node cannot do it.
+| Package | Packages | Role here |
+|---|---|---|
+| `zod` | **1** | runtime — zero dependencies of its own |
+| `commander` | **2** | rejected in favour of `parseArgs` |
+| `jose` | **3** | rejected in favour of `node:crypto` |
+| `qrcode` | **32** | optional peer, CLI QR rendering |
+| `@aws-sdk/client-cognito-identity-provider` | **56** | runtime |
+| `amazon-cognito-identity-js` | **74** | dev-only (SRP oracle) |
+
+Two things follow, and both cut against the intuition that started this policy:
+
+- **`commander` and `jose` are close to free** — 2 and 3 packages, essentially
+  dependency-free. They are an order of magnitude *less* surface than the
+  `qrcode` this plan keeps as an optional extra. Rejecting them buys almost
+  nothing on the supply-chain axis; the case for `parseArgs` and `node:crypto`
+  rests on "the platform already does it well enough", which is a real but much
+  weaker claim.
+- **The AWS SDK is 56 of the 57 runtime packages.** The "two dependencies"
+  framing was misleading — see the open question in §0.1.
+
+**Default:** use the platform. `fetch`, `parseArgs`, `node:crypto`, `tsc`, and
+injected test seams instead of `axios`, `commander`, `jose`, a bundler, and
+HTTP/AWS mocking libraries. `zod` is the standing exception — Node has no native
+runtime schema validation, and pydantic-shaped models keep any future re-sync
+against `python-evnex` mechanical.
+
+**Agent agency to swap back.** If the in-house version turns out to be a worse
+fit once you are actually building it, **take the library** — do not grind
+against the plan or escalate a design debate. This is a delegated call, subject
+to a bar:
+
+1. **Measure it** with `npm i --package-lock-only` and record the count.
+2. **≤5 transitive packages** is self-approve. More than that needs INT sign-off.
+3. Actively maintained, published with provenance where available, pinned to an
+   exact version with the lockfile committed, `npm audit` clean.
+4. Add a row to the table above with the measured count and one line on why the
+   platform lost.
+
+**Pre-approved, no sign-off needed:** `commander` and `jose`. They are measured
+innocuous, and C1's router and A7's JWT helpers are the two places where the
+in-house version is most likely to prove a false economy. If `parseArgs`'s
+missing subcommands, negation and `choices` turn into more router than they are
+worth, or JWKS verification on raw `node:crypto` gets fiddly, swap — that is a
+judgement call the agent doing the work is best placed to make.
+
+Anything reaching for a *third* runtime dependency of real weight still comes to
+INT.
+
+### 0.1 Open decision — is the AWS SDK earning its 56 packages?
+
+Raised by the measurements above, and worth settling before A6 starts.
+
+The eleven Cognito operations in §3.1 need **no SigV4 request signing**. They are
+either unauthenticated (`InitiateAuth`, `RespondToAuthChallenge`,
+`ForgotPassword`, `ConfirmForgotPassword`) or authenticated with the user's own
+access token (`GetUser`, `ChangePassword`, `AssociateSoftwareToken`,
+`VerifySoftwareToken`, `SetUserMFAPreference`). That is precisely why
+`amazon-cognito-identity-js` works in a browser holding no AWS credentials.
+
+Which means each one is a plain JSON POST:
+
+```
+POST https://cognito-idp.{region}.amazonaws.com/
+Content-Type: application/x-amz-json-1.1
+X-Amz-Target: AWSCognitoIdentityProviderService.InitiateAuth
+{ "AuthFlow": "USER_SRP_AUTH", "ClientId": "…", "AuthParameters": { … } }
+```
+
+with errors as `{"__type": "NotAuthorizedException", "message": "…"}` — which
+maps onto §3.2's table *more* directly than SDK error classes do.
+
+Because **A5 already implements SRP**, the SDK is doing nothing here but
+marshalling JSON for eleven calls. Dropping it takes the runtime graph from
+**57 packages to 1** (`zod`, itself dependency-free), and A6 is already
+specified as a narrow adapter that exports no SDK types — so this is a change
+contained to one module, roughly 150 lines of `fetch`.
+
+| | Keep SDK | Hand-rolled `fetch` |
+|---|---|---|
+| Runtime packages | 57 | **1** |
+| A6 size | ~200 lines | ~350 lines |
+| Retries/endpoint resolution | SDK | ours (we have §2.5 already) |
+| Error mapping | SDK error names | `__type` field — arguably cleaner |
+| First-party assurance | ✅ AWS | ❌ ours |
+
+**Recommendation: drop it**, given the stated concern is surface area. The
+first-party argument is real, but it is buying marshalling we do not need, at
+56 packages — and it does not cover the security-critical part, which is the
+SRP handshake we are writing regardless.
+
+**Not actioned yet** — the AWS SDK was an explicit earlier decision, and this is
+a reversal of it, so it needs a call. Everything else in the plan is unaffected
+either way: A6's interface, B1, B2, `api.ts` and the CLI do not change.
 
 ### Open decisions (resolve before Wave 4 / D4)
 
@@ -459,10 +545,10 @@ Every stub carries a `TODO(<agent-id>)` marker naming its owner. Consequences:
    wave gate, not a Wave-4 cleanup. Check §6.3 first: if your module is listed
    there, upstream has no tests to port and yours are original work.
 4. **No `any`.** `unknown` + a Zod parse, or a precise type.
-5. **No new runtime dependencies.** The library core is `zod` plus the AWS
-   Cognito SDK, full stop (§0). If you reach for a package, check whether Node
-   already does it — it usually does. Anything else needs INT approval and a
-   §0 entry justifying it.
+5. **Dependencies: platform first, but you have agency (§0).** Prefer what Node
+   already does. If the in-house version proves a worse fit while you are
+   building it, take the library instead — measure its transitive count, ≤5 is
+   self-approve, and add a §0 row. `commander` and `jose` are pre-approved.
 6. **Report deliberate deviations** from Python behaviour; they become
    `PARITY.md` rows.
 
@@ -1180,11 +1266,13 @@ publish metadata, `.npmignore`/`files`.
 - Build is `tsc -p tsconfig.build.json` — ESM-only, no bundler.
 - Verify the built package installs and `npx evnex --version` runs from a clean
   tarball before the gate passes.
-- **Dependency gate:** assert `dependencies` is exactly `zod` and
-  `@aws-sdk/client-cognito-identity-provider`, that `qrcode` is an
-  `optionalDependencies`/peer and the CLI still works without it installed, and
-  that no dev-only package (notably `amazon-cognito-identity-js`) reaches the
-  published runtime graph. Fail the build on a third runtime dependency.
+- **Dependency gate:** assert `dependencies` matches the §0 table exactly, that
+  `qrcode` is an `optionalDependencies`/peer and the CLI still works without it
+  installed, and that no dev-only package (notably `amazon-cognito-identity-js`)
+  reaches the published runtime graph. Record the **total transitive count** in
+  CI output and fail on an unexplained increase — the direct-dependency count is
+  the misleading number (§0).
+- Enable npm provenance and commit the lockfile; `npm audit` clean is a gate.
 - Resolve the open decision in §0.
 
 ---
@@ -1350,8 +1438,8 @@ relevant and has no upstream test.
 
 | Package | Replaces | Notes |
 |---|---|---|
-| `zod` ^4 | `pydantic` | The one deliberate exception to the dependency policy in §0 |
-| `@aws-sdk/client-cognito-identity-provider` ^3 | `boto3` | First-party. Tree-shakeable; only the commands in §3.1 are imported |
+| `zod` ^4 | `pydantic` | 1 package, zero deps. The standing exception in §0 |
+| `@aws-sdk/client-cognito-identity-provider` ^3 | `boto3` | 56 packages — **see the open decision in §0.1**, which recommends replacing it with `fetch` |
 
 **Optional peer:** `qrcode` ^1.5 — CLI only. A missing install degrades to
 printing the `otpauth://` URI, which upstream treats as a supported opt-out, so
@@ -1367,6 +1455,11 @@ Replaced by the platform, per §0:
 | `tenacity` | `p-retry`, `async-retry` | `src/http/retry.ts` (A8) |
 | `pydantic-settings` | — | `src/config.ts` (A1) |
 | `pycognito` | `amazon-cognito-identity-js` | `src/auth/{srp,cognito}.ts` (A5, A6) |
+
+**Optional peer, measured:** `qrcode` is 32 packages — more surface than
+`commander` and `jose` combined. It stays optional precisely so anyone who cares
+about that can decline it and get the `otpauth://` URI instead. If A10 finds a
+zero-dep QR encoder of comparable quality, that is a straight win; say so.
 
 **Build:** ESM-only means no bundler. `tsc -p tsconfig.build.json` emits the
 package directly — no `tsup`, no `rollup`.

@@ -46,21 +46,25 @@ directly. It is the reference implementation and this port tracks it.
 - Optionally pass in your own `fetch` implementation
 - Optionally pass in tokens to resume an existing session
 - Fully typed, with runtime response validation
-- A command line interface for everyday operations
-- **Two runtime dependencies:** `zod` and AWS's own Cognito SDK
+- A deliberately small dependency footprint
 
 ## Dependencies
 
-The library depends on `zod` for response validation and
-`@aws-sdk/client-cognito-identity-provider` for authentication. Nothing else.
+Direct dependency counts hide what actually matters, so this project tracks the
+**total transitive package count** and prints it in CI.
 
-Everything modern Node already provides is used directly rather than wrapped:
-`fetch` for HTTP, `node:util`'s `parseArgs` for the CLI, `node:crypto` for JWT
-and SRP. There is no HTTP client library, no CLI framework, and no bundler.
+`zod` handles response validation; it pulls in nothing else. Everything modern
+Node already provides is used directly rather than wrapped: `fetch` for HTTP,
+`node:util`'s `parseArgs` for the CLI, `node:crypto` for JWT and SRP. There is
+no HTTP client library, no CLI framework, and no bundler.
 
-`qrcode` is an optional peer used only by `evnex auth mfa enable` to draw a
-scannable code. Without it installed, the CLI prints the `otpauth://` URI
-instead and everything else works unchanged.
+`qrcode` is an optional peer, used only by `evnex auth mfa enable` to draw a
+scannable code. It is 32 packages, which is why it is optional rather than
+required — without it the CLI prints the `otpauth://` URI instead and everything
+else works unchanged.
+
+See [`foundational/PLAN.md` §0](foundational/PLAN.md) for the measured counts and
+the policy.
 
 ## Installation
 
