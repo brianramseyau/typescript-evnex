@@ -2,8 +2,6 @@
  * Request authentication flow — ported from `evnex/auth.py`'s
  * `EvnexHttpxAuth` (PLAN.md §5 A8).
  *
- * TODO(A8): implement.
- *
  * Inject `Authorization: <accessToken>` — the bare token, **no** `Bearer`
  * prefix, and the *access* token, never the id token. Confirmed live by two
  * independent implementations (PLAN.md §10.5) — this is the kind of detail a
@@ -30,5 +28,24 @@ export function withAuthFlow(
   transport: Transport,
   auth: AuthTokenSource,
 ): (spec: RequestSpec) => Promise<Response> {
-  throw new Error("TODO(A8)");
+  return async (spec: RequestSpec): Promise<Response> => {
+    const token = await auth.getAccessToken();
+    // The EVNEX API expects the *bare* access token in `Authorization` —
+    // no `Bearer ` prefix, and the access token, never the id token. Two
+    // independent implementations confirmed this live against a real
+    // account (PLAN.md §10.5), which calls it "the single most likely
+    // cause of an otherwise-inexplicable 401". A future contributor may
+    // "fix" this to look more standard — don't.
+    let response = await transport.send(spec, { Authorization: token });
+
+    if (response.status === 401) {
+      // A 401 means the server rejected the request before executing it,
+      // so the single resend is safe even for command endpoints.
+      await auth.forceRefresh({ staleAccessToken: token });
+      const refreshedToken = await auth.getAccessToken();
+      response = await transport.send(spec, { Authorization: refreshedToken });
+    }
+
+    return response;
+  };
 }
