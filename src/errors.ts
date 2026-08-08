@@ -3,7 +3,11 @@
  *
  * All authentication problems derive from EvnexAuthError; catch that to
  * handle "the session is not usable" generically, or a subclass to react to
- * a specific condition.
+ * a specific condition. Everything the library raises derives from
+ * EvnexError, which has no direct Python analogue: python-evnex's
+ * EvnexAuthError/EvnexConfigurationError each extend ValueError separately,
+ * and JS has no equivalent shared base worth reusing, so this port
+ * introduces EvnexError as the unifying root (PLAN.md §2.4).
  *
  * TODO(A1): implement. Every class sets `this.name` explicitly (so it
  * survives minification) and supports `cause` via the standard `ErrorOptions`
@@ -15,13 +19,16 @@
  * Record the omission in PARITY.md.
  */
 
-/** Base for authentication and session lifecycle errors. */
-export class EvnexAuthError extends Error {
+/** Root of every error this library raises. */
+export class EvnexError extends Error {
   constructor(message?: string, options?: ErrorOptions) {
     super(message, options);
     throw new Error("TODO(A1)");
   }
 }
+
+/** Base for authentication and session lifecycle errors. */
+export class EvnexAuthError extends EvnexError {}
 
 /** The username or password was rejected. */
 export class InvalidCredentialsError extends EvnexAuthError {}
@@ -44,27 +51,7 @@ export class InvalidChallengeResponseError extends EvnexAuthError {}
  * Deterministic and never worth retrying (e.g. no organisation id could be
  * resolved for an org-scoped call).
  */
-export class EvnexConfigurationError extends Error {
-  constructor(message?: string, options?: ErrorOptions) {
-    super(message, options);
-    throw new Error("TODO(A1)");
-  }
-}
+export class EvnexConfigurationError extends EvnexError {}
 
-/** Wraps a `z.ZodError` raised while parsing an API response. */
-export class EvnexValidationError extends Error {
-  readonly cause: unknown;
-
-  constructor(message?: string, options?: ErrorOptions) {
-    super(message, options);
-    throw new Error("TODO(A1)");
-  }
-}
-
-/** Base for the auth-error hierarchy. Superclass, not raised directly. */
-export class EvnexError extends Error {
-  constructor(message?: string, options?: ErrorOptions) {
-    super(message, options);
-    throw new Error("TODO(A1)");
-  }
-}
+/** Wraps a `z.ZodError` raised while parsing an API response, on `cause`. */
+export class EvnexValidationError extends EvnexError {}

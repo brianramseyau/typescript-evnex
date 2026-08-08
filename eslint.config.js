@@ -17,9 +17,13 @@ export default tseslint.config(
     },
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
+      // Wave 0/1 leaves many contract stubs whose bodies are just
+      // `throw new Error("TODO(...)")`, so their declared parameters are
+      // unused until the owning agent implements them (PLAN.md §4.3). Only
+      // flag genuinely unused local variables, not stub parameters.
       "@typescript-eslint/no-unused-vars": [
         "error",
-        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+        { args: "none", varsIgnorePattern: "^_" },
       ],
       "@typescript-eslint/consistent-type-imports": "error",
     },

@@ -20,7 +20,7 @@ export class EvnexConfig {
   readonly EVNEX_COGNITO_CLIENT_ID!: string;
   readonly EVNEX_ORG_ID: string | undefined;
 
-  constructor(_overrides?: EvnexConfigOptions) {
+  constructor(overrides?: EvnexConfigOptions) {
     throw new Error("TODO(A1)");
   }
 }
