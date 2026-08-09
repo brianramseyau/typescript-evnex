@@ -7,9 +7,8 @@
  * so F0 implements it directly rather than leaving it as a `TODO(...)`
  * stub (PLAN.md §5 F0 deliverable 4).
  *
- * Because it delegates to modules that are themselves still `TODO(...)`
- * stubs, every method here throws at runtime until B1 and B2 land — that is
- * expected and correct; this file's own tests mock its collaborators.
+ * Its own tests mock both collaborators, so this file's behaviour is pinned
+ * independently of theirs.
  */
 
 import { EvnexConfig } from "../config.js";
@@ -48,6 +47,15 @@ export interface EvnexAuthOptions {
   config?: EvnexConfig | undefined;
   /** Injection point for tests; built from `config` when omitted. */
   cognito?: CognitoAdapter | undefined;
+  /**
+   * Verify the signature of every freshly issued token against the user
+   * pool's JWKS (PLAN.md §3.4). Defaults to `true`; pass `false` only to
+   * skip the JWKS fetch in offline tests. Python does not verify at all —
+   * `_decode_expiry` reads the `exp` claim without checking the signature —
+   * so disabling this returns to the upstream behaviour rather than
+   * diverging from it.
+   */
+  verifyTokens?: boolean | undefined;
 }
 
 /**
@@ -76,6 +84,7 @@ export class EvnexAuth {
       onTokenUpdate: options.onTokenUpdate,
       config,
       cognito,
+      verifyTokens: options.verifyTokens,
     });
     this.account = new AccountOperations({ session: this.session, cognito, config });
   }

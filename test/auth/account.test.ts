@@ -32,8 +32,8 @@ import { FakeCognito } from "../support/fakeCognito.js";
 // -- FakeAccountSession -------------------------------------------------------
 
 /**
- * A from-scratch `AccountSession` (not B1's `CognitoSession`, which is still
- * `TODO(B1)` and would throw from its own constructor). `runUserPoolOp` just
+ * A from-scratch `AccountSession` rather than the real `CognitoSession`, so
+ * these tests pin `account.ts` alone. `runUserPoolOp` just
  * invokes `operation` with the current access token — no lock, no retry —
  * since that recovery policy is B1's own module to test; this file only
  * needs to prove `account.ts` uses the session correctly.

@@ -129,6 +129,19 @@ describe("EvnexAuth construction", () => {
     expect(session.options["onTokenUpdate"]).toBe(onTokenUpdate);
   });
 
+  // verifyTokens (PLAN.md §3.4) is implemented in CognitoSession, but was
+  // briefly unreachable because the facade dropped it on the floor. Pinned
+  // here so a silent regression can't take the feature away again.
+  it("passes verifyTokens through to CognitoSession", () => {
+    new EvnexAuth({ verifyTokens: false });
+    expect(lastSession().options["verifyTokens"]).toBe(false);
+  });
+
+  it("leaves verifyTokens undefined when unset, so the session applies its own default", () => {
+    new EvnexAuth();
+    expect(lastSession().options["verifyTokens"]).toBeUndefined();
+  });
+
   it("uses an explicitly supplied config and cognito adapter, skipping the defaults", () => {
     const config = new EvnexConfig();
     const cognito = { id: "explicit" };
