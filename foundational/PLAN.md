@@ -1312,14 +1312,67 @@ poll cycle, run both paths and diff the results.
    against real data rather than a fixture.
 6. `evnex status`, `charge-points list` and `sessions list` run against the real
    account and render plausible output.
+7. **The full GET sweep below runs clean**, and its report is committed.
 
 Any schema too tight for a live response is a **defect in the owning agent's
 module**, not something to patch downstream. Report it; do not fix it locally.
 
-**Acceptance.** All six pass, with the live payloads (credentials and tokens
+**Acceptance.** All seven pass, with the live payloads (credentials and tokens
 redacted) added to `test/support/` as fixtures so the next regression is caught
 offline. Do not merge the scratch branch of `ev-charging-log` — it is a test
 harness, and the real migration is that project's own call, on its own schedule.
+
+##### D5's schema sweep
+
+The six checks above sample the endpoints two implementations already exercise.
+That leaves the untrodden paths — exactly where §8 risk 9 says the remaining
+bugs are, and where both A3 and B3 independently flagged the v2
+`EvnexChargePointDetail` as having **no captured fixture in either project**.
+So D5 also runs a sweep of **every GET endpoint**, deriving the schema from what
+the API actually returns rather than from what two partial observations
+assumed.
+
+**Read-only, and enforced as such.** The sweep issues `GET` only. No
+`set-override`, no `remote-stop`, no availability or schedule change, no
+enable/disable — this runs against hardware someone depends on. The sweep
+script must not import the mutating client methods at all, so a future edit
+cannot quietly add one.
+
+**Walk the resource graph** rather than hard-coding ids: user detail → org →
+charge points → per-charge-point detail (**both v2 and v3**), status, energy
+meter reading, override, solar config, transactions (v2) and sessions →
+locations, insight, summary status, connector summary. Include the deprecated
+v2 endpoints explicitly; they are the least corroborated and the reason for
+the sweep.
+
+**Capture the raw body before parsing.** The evidence is the untouched JSON — a
+`ZodError` must never destroy the payload that proves the schema wrong. Redact
+at capture time (tokens, the SRP secret block, email, charge point serial,
+`ocppChargePointId`, `iccid`, coordinates), and redact by *replacement*, never
+by deletion: a removed key is indistinguishable from an absent one, which is
+the exact distinction the sweep exists to measure.
+
+**Report four things per endpoint**, in `docs/schema-sweep.md`:
+1. **Fields the wire returned that our Zod schema does not declare** — additions
+   we are silently dropping. Harmless today thanks to §2.2's no-`.strict()`
+   rule, which this sweep also confirms was the right call.
+2. **Fields our schema requires that the wire omitted** — the §10.1 class of
+   defect, and the sweep's main quarry. Each one is a defect filed against the
+   owning agent.
+3. **Type and shape mismatches** — a number arriving as a string, a date that
+   does not coerce, an envelope wrapped where we expected it bare.
+4. **Divergence from the Python model** for the same endpoint, which is
+   separately interesting: where Python is *also* wrong we have found an
+   upstream bug worth reporting, and where only we are wrong we have found a
+   porting error.
+
+A field observed present on every sampled response is still not proof it is
+required — absence of evidence for optionality is not evidence of requiredness.
+Prefer `.nullish()` and say so in the report; the sweep can only ever prove a
+field *optional*, never *mandatory*.
+
+**Sequential, one shot per endpoint, honouring the retry policy.** This is
+someone's charger, not a load test.
 
 ---
 
@@ -1518,10 +1571,11 @@ above and that nothing dev-only reaches the published runtime graph.
    Brian Thorne and `hardbyte/python-evnex` present and prominent.
 7. `LICENSE` (Apache-2.0) and `NOTICE` preserve upstream attribution.
 8. A clean-tarball install runs `npx evnex --version`.
-9. **D5's six-point downstream validation passes** against a live account via
-   `ev-charging-log`, and its captured live payloads are checked in as fixtures.
-   This supersedes a hand-run smoke test: it is the only check that can actually
-   prove the SRP handshake and the schemas against real data.
+9. **D5's seven-point downstream validation passes** against a live account via
+   `ev-charging-log`, its full GET sweep report is committed as
+   `docs/schema-sweep.md`, and its captured live payloads are checked in as
+   fixtures. This supersedes a hand-run smoke test: it is the only check that
+   can actually prove the SRP handshake and the schemas against real data.
 10. An upstream issue is filed against `hardbyte/python-evnex` for the §10.1
     `timezone` bug, with the live evidence. Courtesy, not a blocker — but the
     finding came from his API knowledge and belongs back with it.
