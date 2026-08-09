@@ -376,9 +376,10 @@ export function buildParser(
   };
 }
 
-// TODO(C2): createAuthCommand's real implementation slots in here.
-// TODO(C3): createResourceCommands' real implementation slots in here.
-// TODO(C4): createChargeCommand's real implementation slots in here.
+// Deliberately a function, not a module-scope constant: this module and the
+// three command modules import each other, so anything evaluated here at load
+// time can capture a partially-initialised binding. Building the tree on call
+// means the whole graph has finished loading first.
 function defaultTopLevelCommands(): Command[] {
   return [createAuthCommand(), ...createResourceCommands(), createChargeCommand()];
 }
