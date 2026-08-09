@@ -55,12 +55,17 @@ captured fixture as unconfirmed until it has.
 
 - Runtime: `zod` (^4), `@aws-sdk/client-cognito-identity-provider` (^3).
 - Optional: `qrcode` (^1.5), CLI-only.
-- See `foundational/PLAN.md` §0 for the measured transitive-package rationale
-  behind this shape, including the still-open question of whether the AWS
-  SDK's Cognito client is worth its share of the dependency graph given the
-  SRP handshake is already hand-written — deliberately left unresolved in
-  this release; see the release notes/PR discussion for the current
-  measurements.
+- The AWS SDK's Cognito client accounts for 22 of the 23 packages installed
+  when the optional `qrcode` is absent, and it is kept deliberately: the SRP
+  handshake is hand-written regardless, so the SDK is buying request
+  marshalling and first-party assurance rather than the security-critical
+  part. Dropping it would take the required runtime graph to `zod` alone, and
+  the adapter exposes no SDK types precisely so that stays a one-module
+  change if the trade is ever re-taken. See `foundational/PLAN.md` §0.1 for
+  the full analysis, including the case against.
+- `scripts/check-dependency-gate.mjs` runs in CI and fails on unexplained
+  growth in the transitive count, which is the number that actually matters —
+  the direct-dependency count is misleading.
 
 [Unreleased]: https://github.com/brianramseyau/typescript-evnex/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/brianramseyau/typescript-evnex/releases/tag/v0.1.0

@@ -47,8 +47,15 @@ itself), measured 2026-08:
 | `commander` | **2** | rejected in favour of `parseArgs` |
 | `jose` | **3** | rejected in favour of `node:crypto` |
 | `qrcode` | **32** | optional peer, CLI QR rendering |
-| `@aws-sdk/client-cognito-identity-provider` | **56** | runtime |
+| `@aws-sdk/client-cognito-identity-provider` | **56** (**22** as re-measured 2026-08-09) | runtime |
 | `amazon-cognito-identity-js` | **74** | dev-only (SRP oracle) |
+
+The AWS SDK row moved between the original measurement and D4's re-measurement
+from the committed lockfile: AWS have been consolidating the `@smithy/*`
+packages. The figures in this table are otherwise as first measured. D4's
+`scripts/check-dependency-gate.mjs` now measures the graph on every CI run and
+fails on unexplained growth, so this table is no longer the live source of
+truth — it is the record of what was known when the decisions were taken.
 
 Two things follow, and both cut against the intuition that started this policy:
 
@@ -58,8 +65,9 @@ Two things follow, and both cut against the intuition that started this policy:
   nothing on the supply-chain axis; the case for `parseArgs` and `node:crypto`
   rests on "the platform already does it well enough", which is a real but much
   weaker claim.
-- **The AWS SDK is 56 of the 57 runtime packages.** The "two dependencies"
-  framing was misleading — see the open question in §0.1.
+- **The AWS SDK is 56 of the 57 runtime packages** (22 of 23 on re-measurement).
+  The "two dependencies" framing was misleading either way — see §0.1, now
+  settled in favour of keeping it.
 
 **Default:** use the platform. `fetch`, `parseArgs`, `node:crypto`, `tsc`, and
 injected test seams instead of `axios`, `commander`, `jose`, a bundler, and
@@ -89,7 +97,29 @@ judgement call the agent doing the work is best placed to make.
 Anything reaching for a *third* runtime dependency of real weight still comes to
 INT.
 
-### 0.1 Open decision — is the AWS SDK earning its 56 packages?
+### 0.1 Settled decision — the AWS SDK stays
+
+**Resolved 2026-08-09: keep `@aws-sdk/client-cognito-identity-provider`.** The
+analysis below stands as written and its recommendation was *not* taken; it is
+kept intact rather than rewritten, because the reasoning is still the honest
+case against, and anyone revisiting this deserves to read it rather than a
+summary of it.
+
+Two things changed between the recommendation and the call. First, **the
+measurement moved**: D4 re-measured from the committed lockfile and found the
+SDK now brings **22** packages, not 56 — AWS have been consolidating the
+`@smithy/*` graph. The headline framing below ("57 packages to 1") is really
+**23 → 1** today, which is a materially smaller prize than the one the
+recommendation was weighing. Second, the first-party assurance argument was
+judged to be worth those packages.
+
+Nothing else in the plan is affected: A6's interface, B1, B2, `api.ts` and the
+CLI are unchanged either way, and A6 leaks no SDK types — so if this is ever
+revisited, it remains a one-module change of roughly 150 lines.
+
+The numbers below are the original measurements. Read them as historical.
+
+---
 
 Raised by the measurements above, and worth settling before A6 starts.
 
@@ -131,15 +161,15 @@ first-party argument is real, but it is buying marshalling we do not need, at
 56 packages — and it does not cover the security-critical part, which is the
 SRP handshake we are writing regardless.
 
-**Not actioned yet** — the AWS SDK was an explicit earlier decision, and this is
-a reversal of it, so it needs a call. Everything else in the plan is unaffected
-either way: A6's interface, B1, B2, `api.ts` and the CLI do not change.
+**~~Not actioned yet~~ — decided: not taken.** See the resolution at the head of
+this section. The SDK is retained.
 
-### Open decisions (resolve before Wave 4 / D4)
+### Decisions (both settled)
 
-1. **Initial version.** Recommend `0.1.0` with `PARITY.md` recording
-   "parity target: python-evnex 0.7.0", rather than mirroring `0.7.0` and
-   implying a shared release history.
+1. **Initial version — settled: `0.1.0`.** Shipped in `package.json`, with
+   `PARITY.md` recording "parity target: python-evnex 0.7.0" rather than
+   mirroring `0.7.0` and implying a shared release history.
+2. **AWS SDK — settled: retained.** See §0.1.
 
 The npm package name is **`evnex`** (confirmed available; if it turns out to be
 taken, `evnex-client` or a scoped name is a late, low-cost swap).
