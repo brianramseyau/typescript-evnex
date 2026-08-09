@@ -45,7 +45,9 @@
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "check-readme-samples": "node scripts/check-readme-samples.mjs",
-    "check-dependency-gate": "node scripts/check-dependency-gate.mjs"
+    "check-dependency-gate": "node scripts/check-dependency-gate.mjs",
+    "sweep": "npx tsx tools/schema-sweep/cli.ts",
+    "sweep:dry-run": "npx tsx tools/schema-sweep/cli.ts --dry-run"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3",

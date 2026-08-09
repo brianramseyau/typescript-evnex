@@ -18,5 +18,5 @@
     "noFallthroughCasesInSwitch": true,
     "outDir": "dist"
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "examples/**/*.ts", "vitest.config.ts", "vitest.setup.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "examples/**/*.ts", "tools/**/*.ts", "vitest.config.ts", "vitest.setup.ts"]
 }

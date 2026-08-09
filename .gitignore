@@ -1,5 +1,12 @@
 node_modules/
 dist/
 coverage/
+
+# Raw captures from the live schema sweep (tools/schema-sweep). These are
+# redacted on write, but redaction is a curated key list and cannot be
+# complete, so the payloads are reviewed by eye before any of them are
+# copied into docs/ or test/support/. Ignored so that a routine `git add -A`
+# after a live run cannot commit an unreviewed charger serial or location.
+schema-sweep-output/
 *.log
 .DS_Store
