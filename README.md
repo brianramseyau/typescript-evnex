@@ -4,10 +4,15 @@ TypeScript client for the [Evnex](https://www.evnex.com/) EV charger Cloud API.
 
 A faithful port of [`hardbyte/python-evnex`](https://github.com/hardbyte/python-evnex).
 
-> **Status: port in progress.** This repository currently contains the port plan
-> ([`foundational/PLAN.md`](foundational/PLAN.md)) and this README. The API
-> described below is the target surface; it is not yet published to npm. Follow
-> the plan document for the current state of each workstream.
+> **Status: code-complete and audited**, symbol-for-symbol against
+> `python-evnex` 0.7.0 (tracked in [`PARITY.md`](PARITY.md)), with 100% line
+> and branch coverage enforced per file. **It has not yet been run against a
+> live Evnex account** — every test to date is offline, against fixtures
+> inherited from `python-evnex`'s own suite, so the SRP handshake and the
+> response schemas are corroborated but not independently confirmed. It is
+> not yet published to npm — install it from a clone or a built tarball until
+> it is. See [`foundational/PLAN.md`](foundational/PLAN.md) for the porting
+> plan and the definition of done.
 
 Author not affiliated with Evnex.
 
@@ -28,7 +33,7 @@ easy part; the reverse engineering was not.
 
 Thank you, Brian, for doing that work and for sharing it under a permissive
 licence. This port stands entirely on it, and tries to preserve the care that
-went into the original — including the comments explaining *why* the code is
+went into the original — including the comments explaining _why_ the code is
 shaped the way it is.
 
 If you use Python, please use [`python-evnex`](https://github.com/hardbyte/python-evnex)
@@ -153,14 +158,14 @@ The Evnex app does not currently expose changing or removing your MFA device;
 the API does, and `EvnexAuth` wraps it (requires a signed-in session):
 
 ```ts
-const status = await auth.getMfaStatus();          // which methods are enabled
+const status = await auth.getMfaStatus(); // which methods are enabled
 
 const enrollment = await auth.beginTotpEnrollment();
-console.log(enrollment.provisioningUri("you@example.com"));  // render as a QR code
+console.log(enrollment.provisioningUri("you@example.com")); // render as a QR code
 await auth.confirmTotpEnrollment(code, { deviceName: "New phone" });
-await auth.setMfaPreference({ totp: true });       // turn TOTP on / make preferred
+await auth.setMfaPreference({ totp: true }); // turn TOTP on / make preferred
 
-await auth.setMfaPreference();                     // disable MFA entirely
+await auth.setMfaPreference(); // disable MFA entirely
 ```
 
 Completing a new TOTP enrollment replaces the previously registered
@@ -235,13 +240,20 @@ npx evnex auth login --otp-command 'op item get Evnex --otp'
 
 ## Configuration
 
-| Environment variable | Default | Purpose |
-|---|---|---|
-| `EVNEX_CLIENT_USERNAME` | — | Account email, for the CLI and examples |
-| `EVNEX_CLIENT_PASSWORD` | — | Account password, for the CLI and examples |
-| `EVNEX_BASE_URL` | `https://client-api.evnex.io` | API base URL |
-| `EVNEX_ORG_ID` | first org on the account | Default organisation for org-scoped calls |
-| `EVNEX_TOKEN_CACHE` | `~/.cache/evnex/tokens.json` | CLI token cache location |
+| Environment variable         | Default                       | Purpose                                                            |
+| ---------------------------- | ----------------------------- | ------------------------------------------------------------------ |
+| `EVNEX_CLIENT_USERNAME`      | —                             | Account email, for the CLI and examples                            |
+| `EVNEX_CLIENT_PASSWORD`      | —                             | Account password, for the CLI and examples                         |
+| `EVNEX_BASE_URL`             | `https://client-api.evnex.io` | API base URL                                                       |
+| `EVNEX_ORG_ID`               | first org on the account      | Default organisation for org-scoped calls                          |
+| `EVNEX_TOKEN_CACHE`          | `~/.cache/evnex/tokens.json`  | CLI token cache location                                           |
+| `EVNEX_COGNITO_USER_POOL_ID` | `ap-southeast-2_zWnqo6ASv`    | Cognito user pool. Only set this to point at a non-production pool |
+| `EVNEX_COGNITO_CLIENT_ID`    | Evnex's public app client     | Cognito app client, as above                                       |
+
+The last two exist so the client can be aimed at a test pool. Evnex's own
+values are the defaults and are not secret — they are public app-client
+identifiers, which is why they can sit in source. Leave both alone unless you
+know you need them.
 
 ## Examples
 

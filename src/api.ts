@@ -134,6 +134,18 @@ const commandResponseV3Envelope = z.object({ data: EvnexCommandResponseV3 });
 const loadScheduleEnvelope = z.object({ data: EvnexChargePointLoadSchedule });
 const chargePointDetailV3Response = evnexV3ApiResponse(EvnexChargePointDetailV3Schema);
 
+/**
+ * The EVNEX Cloud API client. Construct with an already-configured
+ * `EvnexAuth`; every method authenticates through it, retries per
+ * `withRetry`'s policy (see the file header), and throws
+ * `EvnexValidationError` if a response no longer matches the schema this
+ * version of the client expects.
+ *
+ * Most org-scoped methods take an optional `orgId` and fall back to
+ * `this.orgId`, which `getUserDetail()` populates with the account's first
+ * organisation the first time it is called — call it once up front (as the
+ * examples do) rather than passing `orgId` explicitly everywhere.
+ */
 export class Evnex {
   /** The org id resolved so far — set explicitly, from config, or by `getUserDetail`. */
   orgId: string | undefined;
@@ -208,6 +220,14 @@ export class Evnex {
     return result.data;
   }
 
+  /**
+   * Fetch the signed-in account's profile and organisation list. Almost
+   * always the first call made against a fresh client: it resolves and
+   * caches the default org id (`this.orgId`) from the account's first
+   * organisation, so every org-scoped method called afterwards can omit
+   * `orgId` — unless one was already configured or resolved, which this
+   * never overrides.
+   */
   async getUserDetail(): Promise<EvnexUserDetail> {
     return withRetry(async () => {
       const json = await this.fetchJson({ method: "GET", path: "/v2/apps/user" });
@@ -226,6 +246,12 @@ export class Evnex {
     });
   }
 
+  /**
+   * List the charge points belonging to an organisation (v2/flat envelope —
+   * see `getChargePointDetailV3` for the current per-charge-point detail
+   * shape). `EvnexHttpError` is an extra non-retryable case here, matching
+   * Python's `@api_retry(HTTPStatusError)` on `get_org_charge_points`.
+   */
   async getOrgChargePoints(orgId?: string): Promise<EvnexChargePoint[]> {
     return withRetry(
       async () => {
@@ -240,6 +266,7 @@ export class Evnex {
     );
   }
 
+  /** Daily energy, cost, carbon, and session-count entries for an organisation. */
   async getOrgInsight(options: GetOrgInsightOptions): Promise<EvnexOrgInsightEntry[]> {
     return withRetry(async () => {
       const resolvedOrgId = this.resolveOrgId(options.orgId);
@@ -252,6 +279,11 @@ export class Evnex {
     });
   }
 
+  /**
+   * Per-status connector counts across the organisation (v2 endpoint). See
+   * `getOrgConnectorSummary` for the newer endpoint reporting the same
+   * counts through a different response shape.
+   */
   async getOrgSummaryStatus(orgId?: string): Promise<EvnexOrgSummaryStatus> {
     return withRetry(async () => {
       const resolvedOrgId = this.resolveOrgId(orgId);
@@ -263,6 +295,11 @@ export class Evnex {
     });
   }
 
+  /**
+   * List an organisation's locations. `EvnexHttpError` is an extra
+   * non-retryable case here, matching Python's `@api_retry(HTTPStatusError)`
+   * on `get_org_locations`.
+   */
   async getOrgLocations(orgId?: string): Promise<EvnexLocation[]> {
     return withRetry(
       async () => {
@@ -313,6 +350,15 @@ export class Evnex {
     });
   }
 
+  /**
+   * Full detail for one charge point (v3/JSON:API envelope) — the
+   * non-deprecated replacement for `getChargePointDetail`, and the one the
+   * CLI's `status`/`charge-points show`/`schedule show` all use. The payload
+   * is under `.data.attributes`; `.data.attributes.timeZone` is the only
+   * place the charger's IANA timezone is exposed (the list endpoint carries
+   * none — PLAN.md §10.2). `TypeError` is an extra non-retryable case here,
+   * matching Python's `@api_retry(TypeError)` on `get_charge_point_detail_v3`.
+   */
   async getChargePointDetailV3(
     chargePointId: string,
   ): Promise<EvnexV3APIResponse<EvnexChargePointDetailV3>> {
@@ -482,10 +528,15 @@ export class Evnex {
     );
   }
 
+  /** Re-enable a previously disabled charger. Thin wrapper over `setChargerAvailability`. */
   async enableCharger(options: ChargerAvailabilityTarget): Promise<void> {
     await this.setChargerAvailability({ ...options, available: true });
   }
 
+  /**
+   * Disable a charger (or one connector). Thin wrapper over
+   * `setChargerAvailability`; see it for the resulting `ocppStatus`.
+   */
   async disableCharger(options: ChargerAvailabilityTarget): Promise<void> {
     await this.setChargerAvailability({ ...options, available: false });
   }
