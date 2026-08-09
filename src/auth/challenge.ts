@@ -6,6 +6,8 @@
  * a later request (within the short session lifetime, around 3 minutes).
  */
 
+import { inspect } from "node:util";
+
 export interface AuthChallengeOptions {
   name: string;
   session: string;
@@ -50,6 +52,22 @@ export class AuthChallenge {
       username: data.username,
       parameters: { ...(data.parameters ?? {}) },
     });
+  }
+
+  /**
+   * Redacted string form. Mirrors the Python dataclass, which marks *both*
+   * `session` and `username` `repr=False`: the session string is the
+   * credential that answers the challenge, and the username is personal
+   * data. `toJSON()` deliberately still emits both — serialising a
+   * challenge to answer it in another process is the whole point of this
+   * class, and that is a different act from writing one to a log.
+   */
+  toString(): string {
+    return `AuthChallenge { name: ${this.name}, parameters: ${inspect(this.parameters)} }`;
+  }
+
+  [inspect.custom](): string {
+    return this.toString();
   }
 }
 

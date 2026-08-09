@@ -39,10 +39,13 @@ interface QrcodeModule {
  */
 function isModuleNotFoundError(error: unknown): boolean {
   const err = error as NodeJS.ErrnoException & { cause?: NodeJS.ErrnoException };
-  /* v8 ignore next -- the `err.code` side and the `.cause` presence check
-     are only reachable via a real, unmocked import() failure; see the
-     function docstring for why the test suite can only exercise the
-     `.cause`-wrapped path. */
+  // The `err.code` side and the `.cause` presence check are only reachable
+  // via a real, unmocked import() failure; see the docstring above for why
+  // the suite can only exercise the `.cause`-wrapped path. This directive
+  // must stay a single-line comment on the line directly above its target:
+  // written as a block, `next` resolves to a line inside the comment body
+  // and silently excludes the wrong statement.
+  /* v8 ignore next */
   const code = err.code ?? err.cause?.code;
   return code === "ERR_MODULE_NOT_FOUND";
 }

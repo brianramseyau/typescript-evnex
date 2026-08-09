@@ -545,6 +545,44 @@ describe("sessions list", () => {
     expect(result.stdout).not.toContain("1.96 NZD");
   });
 
+  it("defaults to at most 10 sessions when --limit is omitted (test_sessions_limit_defaults_to_ten)", async () => {
+    backend.chargePoints = parseChargePoints(CHARGE_POINTS_PAYLOAD);
+    // 12 completed sessions, each with a distinct startDate so newest-first
+    // ordering is well defined; the parser-level Python test only asserts
+    // `args.limit == 10`, but nothing here stops a default from being wired
+    // correctly at the parser while the command forgets to apply it (or vice
+    // versa) — sending 12 and counting rendered rows exercises the whole path.
+    backend.sessionsByCp[CP_ID] = parseSessions({
+      data: Array.from({ length: 12 }, (_, i) => ({
+        id: `session-${String(i).padStart(7, "0")}`,
+        type: "session",
+        attributes: {
+          connectorId: "1",
+          createdDate: `2024-06-${String(i + 1).padStart(2, "0")}T08:00:00Z`,
+          evseId: "1",
+          sessionStatus: "Completed",
+          startDate: `2024-06-${String(i + 1).padStart(2, "0")}T08:00:00Z`,
+          updatedDate: `2024-06-${String(i + 1).padStart(2, "0")}T09:00:00Z`,
+          endDate: `2024-06-${String(i + 1).padStart(2, "0")}T09:00:00Z`,
+          totalPowerUsage: 1000,
+          totalCost: null,
+        },
+      })),
+    });
+
+    const result = await run(["sessions", "list"]);
+
+    expect(result.exitCode).toBe(0);
+    // Header plus exactly ten data rows, not all twelve.
+    expect(result.stdout.trim().split("\n")).toHaveLength(11);
+    // The newest ten (June 3rd through June 12th) render; the two oldest
+    // (June 1st and 2nd) are cut off by the default limit.
+    expect(result.stdout).toContain("2024-06-12");
+    expect(result.stdout).toContain("2024-06-03");
+    expect(result.stdout).not.toContain("2024-06-02");
+    expect(result.stdout).not.toContain("2024-06-01");
+  });
+
   it("enforces newest-first ordering regardless of API order (test_sessions_ordering_is_enforced)", async () => {
     backend.chargePoints = parseChargePoints(CHARGE_POINTS_PAYLOAD);
     backend.sessionsByCp[CP_ID] = parseSessions({

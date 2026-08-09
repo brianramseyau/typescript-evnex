@@ -1,3 +1,4 @@
+import { inspect } from "node:util";
 import { describe, expect, it } from "vitest";
 import { AuthChallenge, isAuthChallenge } from "../../src/auth/challenge.js";
 
@@ -80,6 +81,55 @@ describe("AuthChallenge", () => {
 
     params["a"] = "mutated";
     expect(challenge.parameters["a"]).toBe("1");
+  });
+});
+
+// Mirrors python-evnex's test_challenge_repr_redacts_username. Python marks
+// both `session` and `username` repr=False, so both are checked here: a
+// console.log of a challenge is a plausible debugging reflex, and it must not
+// put a Cognito session credential or a user's email into a log file.
+describe("AuthChallenge redaction", () => {
+  const challenge = new AuthChallenge({
+    name: CHALLENGE_SOFTWARE_TOKEN_MFA,
+    session: "opaque-session-credential",
+    username: "user@example.com",
+  });
+
+  it("keeps the username out of toString()", () => {
+    expect(challenge.toString()).not.toContain("user@example.com");
+  });
+
+  it("keeps the session credential out of toString()", () => {
+    expect(challenge.toString()).not.toContain("opaque-session-credential");
+  });
+
+  // console.log() and string interpolation take different paths through
+  // Node: the former uses util.inspect, which ignores toString() unless
+  // inspect.custom is wired up. TokenSet wires it; this asserts the
+  // challenge does too, since that is the path a stray debug line takes.
+  it("keeps both out of util.inspect(), the path console.log uses", () => {
+    const shown = inspect(challenge);
+    expect(shown).not.toContain("user@example.com");
+    expect(shown).not.toContain("opaque-session-credential");
+  });
+
+  it("still shows the non-secret name and parameters, so it stays debuggable", () => {
+    const withParams = new AuthChallenge({
+      name: CHALLENGE_SOFTWARE_TOKEN_MFA,
+      session: "s",
+      username: "u@example.com",
+      parameters: { FRIENDLY_DEVICE_NAME: "phone" },
+    });
+    expect(inspect(withParams)).toContain(CHALLENGE_SOFTWARE_TOKEN_MFA);
+    expect(inspect(withParams)).toContain("FRIENDLY_DEVICE_NAME");
+  });
+
+  // Redaction is a logging concern, not a serialisation one. Answering a
+  // challenge in another process needs the real values, so toJSON() must
+  // keep emitting them.
+  it("does not redact toJSON(), which exists to round-trip the real values", () => {
+    expect(challenge.toJSON().username).toBe("user@example.com");
+    expect(challenge.toJSON().session).toBe("opaque-session-credential");
   });
 });
 
