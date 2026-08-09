@@ -3,13 +3,17 @@
  * SIGINT handling, and the "no leaf subcommand" / `--version` outcomes as
  * seen through the public single-argument `main(argv)` contract.
  *
- * `./parser.js`'s `buildParser` is mocked to hand back a synthetic root —
- * C2/C3/C4 have not run yet, so the real command tree would throw
- * `TODO(...)`. `dispatch` itself is left un-mocked (the real implementation,
- * already covered by `parser.test.ts`), so these tests exercise `main`'s own
- * logic end to end against real routing.
+ * `./parser.js`'s `buildParser` is mocked to hand back a synthetic root, so
+ * a failure here localises to `main` rather than to the command tree.
+ * `dispatch` itself is left un-mocked (the real implementation, already
+ * covered by `parser.test.ts`), so these tests exercise `main`'s own logic
+ * end to end against real routing.
  */
 
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EvnexAuthError, EvnexValidationError } from "../../src/errors.js";
 import { EvnexHttpError, EvnexTimeoutError } from "../../src/http/errors.js";
@@ -27,7 +31,7 @@ vi.mock("../../src/cli/parser.js", async (importOriginal) => {
   };
 });
 
-const { main } = await import("../../src/cli/index.js");
+const { main, isEntrypoint } = await import("../../src/cli/index.js");
 
 function setRoot(root: Command): void {
   state.root = root;
@@ -176,5 +180,54 @@ describe("no subcommand / --version, end to end", () => {
     const result = await runCli(main, ["bogus"]);
 
     expect(result.exitCode).toBe(2);
+  });
+});
+
+// The bin-symlink regression. npm installs `bin` entries as symlinks, and
+// `npx evnex` executes the symlink — so `process.argv[1]` is the symlink path
+// while Node resolves `import.meta.url` to its target. Comparing the two raw
+// never matched, and the CLI exited 0 having done nothing at all. Nothing in
+// the suite could see it: the guard lived inside a coverage-excluded block,
+// and every test here imports the module rather than executing it. Found by a
+// clean-tarball install, pinned here with a real symlink on disk.
+describe("isEntrypoint", () => {
+  let dir: string;
+  let target: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "evnex-entrypoint-"));
+    target = join(dir, "index.js");
+    writeFileSync(target, "");
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("is false when there is no argv[1] at all", () => {
+    expect(isEntrypoint(pathToFileURL(target).href, undefined)).toBe(false);
+  });
+
+  it("is true when invoked by its own real path", () => {
+    expect(isEntrypoint(pathToFileURL(target).href, target)).toBe(true);
+  });
+
+  it("is true when invoked through a symlink, as npm's bin shim does", () => {
+    const link = join(dir, "evnex-shim");
+    symlinkSync(target, link);
+    expect(isEntrypoint(pathToFileURL(target).href, link)).toBe(true);
+  });
+
+  it("is false for an unrelated file", () => {
+    const other = join(dir, "other.js");
+    writeFileSync(other, "");
+    expect(isEntrypoint(pathToFileURL(target).href, other)).toBe(false);
+  });
+
+  // realpath throws on a path that does not exist. Falling back to the raw
+  // path keeps this a plain false rather than an unhandled throw at module
+  // scope, which would break every file the coverage run imports.
+  it("is false, not throwing, when argv[1] does not exist", () => {
+    expect(isEntrypoint(pathToFileURL(target).href, join(dir, "gone.js"))).toBe(false);
   });
 });

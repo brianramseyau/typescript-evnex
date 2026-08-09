@@ -5,7 +5,14 @@
   "type": "module",
   "license": "Apache-2.0",
   "author": "typescript-evnex contributors",
-  "homepage": "https://github.com/hardbyte/python-evnex",
+  "homepage": "https://github.com/brianramseyau/typescript-evnex#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/brianramseyau/typescript-evnex.git"
+  },
+  "bugs": {
+    "url": "https://github.com/brianramseyau/typescript-evnex/issues"
+  },
   "engines": {
     "node": ">=20"
   },
@@ -31,11 +38,14 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "postbuild": "chmod +x dist/cli/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run --coverage",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check-readme-samples": "node scripts/check-readme-samples.mjs",
+    "check-dependency-gate": "node scripts/check-dependency-gate.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3",

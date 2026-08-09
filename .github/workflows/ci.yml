@@ -5,8 +5,14 @@ on:
     branches: [main]
   pull_request:
 
+# A newer push on the same branch/PR supersedes an in-flight run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
+    name: Lint, typecheck, test, build (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -22,3 +28,48 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  verify:
+    name: README samples + dependency gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # README code samples are fragments a reader copies one block at a
+      # time; this extracts and type-checks every one against the project's
+      # own tsconfig (PLAN.md Wave 4 / D3, wired into CI by D4).
+      - run: node scripts/check-readme-samples.mjs
+      # Asserts `dependencies`/`optionalDependencies` match PLAN.md §0
+      # exactly, that the dev-only differential SRP oracle
+      # (`amazon-cognito-identity-js`) never reaches the production install
+      # graph, and that the total transitive package count of the published
+      # runtime graph hasn't grown past the committed baseline unnoticed.
+      - run: node scripts/check-dependency-gate.mjs
+
+  audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # The published package's own dependency graph must be clean — this
+      # is the gate.
+      - name: Audit the published runtime graph (blocking)
+        run: npm audit --omit=dev
+      # devDependencies (the vitest/vite/eslint/typescript toolchain) are
+      # never shipped, so a finding here doesn't block CI, but it should
+      # not go unnoticed either.
+      - name: Audit the full tree, including devDependencies (informational)
+        if: always()
+        run: |
+          npm audit || {
+            echo "::warning::npm audit found issues outside the published runtime graph (devDependencies only — not shipped). See the job log above for detail; consider a follow-up devDependency bump.";
+          }

@@ -1,0 +1,64 @@
+name: Release
+
+# Mirrors python-evnex's trusted-publishing shape (release published ->
+# build -> verify -> publish with provenance) as closely as npm's model
+# allows: npm provenance is OIDC-based like PyPI trusted publishing, but is
+# requested per-`npm publish` via `--provenance` + `id-token: write` rather
+# than configured as a registry-side trust relationship.
+on:
+  release:
+    types: [published]
+
+# Only one publish at a time; never cancel one that's already underway.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Verify and publish to npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      - name: README samples type-check
+        run: node scripts/check-readme-samples.mjs
+
+      - name: Dependency gate (PLAN.md §0 shape + transitive-count baseline)
+        run: node scripts/check-dependency-gate.mjs
+
+      - name: Audit the published runtime graph
+        run: npm audit --omit=dev
+
+      # Builds, `npm pack`s, installs the *tarball* (never the repo) into
+      # disposable directories outside the workspace, and proves:
+      #  - `npx evnex --version` actually runs through npm's own bin-symlink
+      #    mechanism, not just when the entry file is invoked directly;
+      #  - the CLI's QR enrollment path degrades to the otpauth:// URI
+      #    fallback with the optional `qrcode` peer genuinely absent.
+      # This is the last chance to catch a packaging or entrypoint defect
+      # before it reaches the registry — it is expected to block the
+      # release if it fails, not to be worked around.
+      - name: Verify the built package installs and the CLI runs from a clean tarball
+        run: node scripts/verify-release-tarball.mjs
+
+      - name: Publish (npm provenance)
+        run: npm publish --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

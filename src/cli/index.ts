@@ -13,6 +13,7 @@
  * mapping only ever sees errors raised by a leaf command's `run`.
  */
 
+import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { EvnexAuthError, EvnexValidationError } from "../errors.js";
 import { EvnexHttpError, EvnexTimeoutError } from "../http/errors.js";
@@ -55,12 +56,40 @@ export async function main(
   }
 }
 
-const isDirectlyExecuted =
-  process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1];
-
-/* v8 ignore start -- process entrypoint guard, exercised only when this file
-   is run directly as the `evnex` binary, not when imported by tests */
-if (isDirectlyExecuted) {
-  await main();
+/**
+ * Resolve a path through any symlinks, falling back to the path itself if it
+ * cannot be resolved (it may not exist, or be unreadable). Never throws:
+ * this runs at module scope, and coverage imports every file in `src/`, so a
+ * throw here would take down the whole suite rather than just this command.
+ */
+function realPathOrSelf(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
 }
-/* v8 ignore stop */
+
+/**
+ * True when this module is the process entrypoint rather than an import.
+ *
+ * Both sides are resolved through symlinks before comparing, which is the
+ * whole point. npm installs a `bin` as a symlink at `node_modules/.bin/evnex`
+ * pointing at the real `dist/cli/index.js`, and that is exactly what `npx
+ * evnex` executes. Node's ESM loader resolves `import.meta.url` to the
+ * symlink's *target*, while `process.argv[1]` keeps the symlink path it was
+ * invoked by — so comparing them raw never matches, `main()` never runs, and
+ * the CLI exits 0 having silently done nothing. That is not a hypothetical:
+ * it is what shipped until a clean-tarball install caught it, because the
+ * bug is invisible to any test that imports this module directly.
+ *
+ * Exported so that behaviour can actually be tested, rather than living
+ * inside the coverage-excluded block below where nothing can reach it.
+ */
+export function isEntrypoint(moduleUrl: string, argv1: string | undefined): boolean {
+  if (argv1 === undefined) return false;
+  return realPathOrSelf(fileURLToPath(moduleUrl)) === realPathOrSelf(argv1);
+}
+
+/* v8 ignore next -- the invocation itself only happens when run as a binary */
+if (isEntrypoint(import.meta.url, process.argv[1])) await main();
