@@ -357,13 +357,15 @@ export function createCognitoAdapter(
       }
 
       const { salt, srpB, secretBlock, userIdForSrp } = extractSrpChallengeParameters(initiateResponse);
+      // Unlike a chained challenge response (toAuthResult below), Session is
+      // genuinely optional here: live testing against the real pool (PLAN.md
+      // §10, D5) shows InitiateAuth's PASSWORD_VERIFIER response carries only
+      // ChallengeName + ChallengeParameters, no Session at all. That matches
+      // AWS's own docs for RespondToAuthChallenge, where Session is optional —
+      // SECRET_BLOCK already carries the server-side state this first
+      // round-trip needs. Treating it as required broke sign-in against every
+      // real account; omit it from the reply rather than rejecting up front.
       const session = initiateResponse.Session;
-      if (!session) {
-        throw new CognitoError(
-          "InvalidServerResponse",
-          "Cognito's PASSWORD_VERIFIER challenge was missing a session",
-        );
-      }
 
       const { signature, timestamp } = srp.computeChallengeResponse({
         srpB,
@@ -379,7 +381,7 @@ export function createCognitoAdapter(
           new RespondToAuthChallengeCommand({
             ChallengeName: SRP_CHALLENGE_NAME,
             ClientId: options.clientId,
-            Session: session,
+            ...(session ? { Session: session } : {}),
             ChallengeResponses: {
               USERNAME: userIdForSrp,
               PASSWORD_CLAIM_SECRET_BLOCK: secretBlock,

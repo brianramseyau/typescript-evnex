@@ -297,8 +297,14 @@ describe("authenticate", () => {
     },
   );
 
-  it("throws CognitoError when the PASSWORD_VERIFIER challenge has no session", async () => {
-    const { adapter } = makeAdapter([
+  it("completes sign-in when InitiateAuth's PASSWORD_VERIFIER challenge has no session (live-verified, PLAN.md §10/D5)", async () => {
+    // Confirmed against a real user pool: InitiateAuth's challenge response can
+    // carry only ChallengeName + ChallengeParameters, no Session at all. AWS
+    // docs mark Session as optional on RespondToAuthChallenge — SECRET_BLOCK
+    // already carries the state this first round-trip needs. An earlier
+    // version of this adapter hard-required Session here, which broke sign-in
+    // against every real account.
+    const { adapter, requests } = makeAdapter([
       {
         statusCode: 200,
         body: {
@@ -306,10 +312,13 @@ describe("authenticate", () => {
           ChallengeParameters: { SALT: "s", SRP_B: "b", SECRET_BLOCK: "c", USER_ID_FOR_SRP: "u" },
         },
       },
+      { statusCode: 200, body: { AuthenticationResult: { AccessToken: "a", IdToken: "i" } } },
     ]);
-    const err = await adapter.authenticate({ username: "alice", password: "p" }).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(CognitoError);
-    expect((err as CognitoError).message).toContain("session");
+
+    const result = await adapter.authenticate({ username: "alice", password: "p" });
+
+    expect(result.kind).toBe("tokens");
+    expect(requests[1]?.body).not.toHaveProperty("Session");
   });
 
   it("wraps a ClientError from RespondToAuthChallenge as a CognitoError", async () => {
