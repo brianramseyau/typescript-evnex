@@ -272,12 +272,12 @@ purity every `--json` test in this suite depends on.
 | `AntiSleepState` | `src/schema/chargePoints.ts` `AntiSleepState` | ✅ ported | All 4 members verified. |
 | `ChargePointStatus` | `src/schema/chargePoints.ts` `ChargePointStatus` | ✅ ported | All 5 fields required in both. |
 | `EvnexChargePointConnectorMeter` | `src/schema/chargePoints.ts` `EvnexChargePointConnectorMeter` | ✅ ported | `register` (wire) → `rawRegister` via `.transform()` (PLAN.md §2.1). All 5 fields required in both. |
-| `Coordinates` | `src/schema/chargePoints.ts` `Coordinates` | ✅ ported | |
+| `Coordinates` | `src/schema/chargePoints.ts` `Coordinates` | 🔄 adapted | **D5 live sweep finding (docs/schema-sweep.md, 2026-08-11):** the wire sends `latitude`/`longitude` as strings ("-41.2865"), not numbers — the port originally matched Python's `float` typing and threw `ZodError` on every real `getOrgChargePoints` response with a location. Fixed to `z.string()`, matching this same package's own `EvnexLocationCoordinates` (v3), which already made this call for the identical data shape. Whether `python-evnex`'s v2 model has the identical bug was not re-verified against its source at fix time (no local copy) — flagged as a likely second §10.1-class upstream defect, not confirmed. |
 | `EvnexAddress` | `src/schema/chargePoints.ts` `EvnexAddress` | ✅ ported | `address1`/`country` required, `address2`/`address3`/`city`/`postCode`/`state` optional — verified field-for-field. |
 | `EvnexLocation` (v2) | `src/schema/chargePoints.ts` `EvnexLocation` (re-exported as `EvnexChargePointLocation` from `src/index.ts`) | ✅ ported | Name collides with `evnex/schema/v3/locations.py`'s `EvnexLocation` — F0 aliased the barrel export, v3 keeping the unqualified name (it is what the current, non-deprecated methods return). `address`/`coordinates` optional, everything else required — verified. |
 | `EvnexChargePointConnector` | `src/schema/chargePoints.ts` `EvnexChargePointConnector` | ✅ ported | Only `meter` optional; all 10 other fields required — verified. |
 | `EvnexChargePointDetails` | `src/schema/chargePoints.ts` `EvnexChargePointDetails` | ✅ ported | Only `iccid` optional. |
-| `EvnexChargePointSolarConfig` | `src/schema/chargePoints.ts` `EvnexChargePointSolarConfig` | ✅ ported | All 4 fields required in both. |
+| `EvnexChargePointSolarConfig` | `src/schema/chargePoints.ts` `EvnexChargePointSolarConfig` | 🔄 adapted | **D5 live sweep finding (docs/schema-sweep.md, 2026-08-11):** on a charge point with solar control unsupported, `solarWithSchedule`/`solarStartExportPower`/`solarStopImportPower` all report the literal string `"NotSupported"` instead of their normal type — the same pattern Python (and this port) already handle on `EvnexChargePointOverrideConfig.chargeNow`, but not previously modelled here, so the port threw `ZodError` against this real response. Widened each to `z.union([<type>, z.literal("NotSupported")])`. The same capture also surfaced four fields absent from both this port and (per the original agent brief) the Python model: `numChargingPhases`, `allowPhaseSwitchingOnSolar`, `solarControlTargetOffset`, `solarControlTargetPower` — added as `.nullish()` unions since only the `"NotSupported"` shape has ever been observed for any of them. |
 | `EvnexChargePointOverrideConfig` | `src/schema/chargePoints.ts` `EvnexChargePointOverrideConfig` | ✅ ported | `bool \| Literal["NotSupported"]` → `z.union([z.boolean(), z.literal("NotSupported")])`, required in both. |
 | `EvnexChargePointStatus` | `src/schema/chargePoints.ts` `EvnexChargePointStatus` | ✅ ported | Only `chargePointStatus` optional. |
 | `EvnexChargePointStatusResponse` | `src/schema/chargePoints.ts` `EvnexChargePointStatusResponse` | ✅ ported | |
@@ -319,13 +319,13 @@ purity every `--json` test in this suite depends on.
 |---|---|---|---|
 | `EvnexV3Include` | `src/schema/v3/generic.ts` `EvnexV3Include` | ✅ ported | `attributes: dict` → `z.record(z.string(), z.unknown())`, both effectively open maps. |
 | `EvnexV3Data[T]` | `src/schema/v3/generic.ts` (inlined into `evnexV3ApiResponse`'s `data` field) | ✅ ported | `relationships` required (no default) in both. |
-| `EvnexV3APIResponse[T]` | `src/schema/v3/generic.ts` `evnexV3ApiResponse` (factory) + `EvnexV3APIResponse<T>` (type) | 🔄 adapted | `Generic[T]` → factory function, per PLAN.md §5 A4. **Requiredness finding (new — not previously documented by any agent):** Python's `included: list[EvnexV3Include] \| None` has **no `= None` default**. Under Pydantic v2 semantics (unlike v1), an `Optional[X]`-typed field with no explicit default is **required** — the key must be present in the payload, though its value may be `null`. Confirmed by grepping the whole `evnex/` tree for the `X | None` (no `=`) pattern in model bodies: this is the *only* field in any schema file with this shape. The port's `included: z.array(EvnexV3Include).nullish()` is **optional and nullable** — it accepts the key being entirely absent, which Python would reject with a `ValidationError`. This makes the TS schema strictly *more lenient* than Python here, not less — the opposite direction from the §10.1 bug. Not observed to cause a practical problem (every real v3 response the test fixtures and live-verified findings in PLAN.md §10 describe does include an `included` key, if only as `null` or `[]`), and the extra leniency is arguably safer given the API's history of undocumented shape drift (PLAN.md §2.2's rationale for never using `.strict()`), but it was not a *deliberate, documented* choice by A4 the way §10.1's `timezone` was — it appears to be an oversight of the v1-vs-v2 "Optional implies default" rule change, not a decision. Recorded in "Defects found but not fixed" below. |
+| `EvnexV3APIResponse[T]` | `src/schema/v3/generic.ts` `evnexV3ApiResponse` (factory) + `EvnexV3APIResponse<T>` (type) | 🔄 adapted | `Generic[T]` → factory function, per PLAN.md §5 A4. **Requiredness finding (new — not previously documented by any agent):** Python's `included: list[EvnexV3Include] \| None` has **no `= None` default**. Under Pydantic v2 semantics (unlike v1), an `Optional[X]`-typed field with no explicit default is **required** — the key must be present in the payload, though its value may be `null`. Confirmed by grepping the whole `evnex/` tree for the `X | None` (no `=`) pattern in model bodies: this is the *only* field in any schema file with this shape. The port's `included: z.array(EvnexV3Include).nullish()` is **optional and nullable** — it accepts the key being entirely absent, which Python would reject with a `ValidationError`. This makes the TS schema strictly *more lenient* than Python here, not less — the opposite direction from the §10.1 bug. Not observed to cause a practical problem (every real v3 response the test fixtures and live-verified findings in PLAN.md §10 describe does include an `included` key, if only as `null` or `[]`), and the extra leniency is arguably safer given the API's history of undocumented shape drift (PLAN.md §2.2's rationale for never using `.strict()`), but it was not a *deliberate, documented* choice by A4 the way §10.1's `timezone` was — it appears to be an oversight of the v1-vs-v2 "Optional implies default" rule change, not a decision. **D5 live sweep update (docs/schema-sweep.md, 2026-08-11):** both v3 endpoints that go through this generic wrapper (`chargePointDetailV3`, `orgLocations`) carried `included` present and populated in every captured response — no case of it being absent or `null` was observed. This corroborates Python's stricter "required" reading in practice, on a small sample (one account, two endpoints, one capture each) — not proof it is never absent. Recorded in "Defects found but not fixed" below. |
 | `EvnexRelationship` | `src/schema/v3/relationships.ts` `EvnexRelationship` | ✅ ported | Both fields required in both. |
 | `EvnexRelationshipWrapper` | `src/schema/v3/relationships.ts` `EvnexRelationshipWrapper` | ✅ ported | `data: EvnexRelationship \| None = None` → `.nullish()` (has an explicit default in Python, so genuinely optional — unlike `included` above). |
 | `EvnexRelationships` | `src/schema/v3/relationships.ts` `EvnexRelationships` | ✅ ported | All 3 fields optional (`= None`) in both. |
-| `EvnexElectricityTariff` | `src/schema/v3/cost.ts` `EvnexElectricityTariff` | ✅ ported | All 3 fields required in both. |
+| `EvnexElectricityTariff` | `src/schema/v3/cost.ts` `EvnexElectricityTariff` | 🔄 adapted | **D5 live sweep finding (docs/schema-sweep.md, 2026-08-11):** `rate` is required in both, but the wire sends it as a numeric string ("0.3"), not a number — the port originally matched Python's `float` typing and threw `ZodError` on every real `chargePointDetailV3`/`chargePointSessions` response. Widened to `z.coerce.number()` (not plain `z.string()`) so downstream consumers — the CLI's `.toFixed(2)` display in particular — keep getting an actual `number`. Whether Python's own model has the identical bug was not re-verified against its source at fix time. |
 | `EvnexElectricityCost` (v3) | `src/schema/v3/cost.ts` `EvnexElectricityCost` (re-exported as `EvnexElectricityCostV3`) | ✅ ported | Only `cost` optional; `currency`/`tariffs`/`tariffType` required — verified (a genuinely different requiredness profile from the v2 `EvnexElectricityCost`, which is correct: they are different endpoints' shapes). |
-| `EvnexElectricityCostTotal` | `src/schema/v3/cost.ts` `EvnexElectricityCostTotal` | ✅ ported | `distribution: Any = None` → `z.unknown().nullish()`. |
+| `EvnexElectricityCostTotal` | `src/schema/v3/cost.ts` `EvnexElectricityCostTotal` | 🔄 adapted | `distribution: Any = None` → `z.unknown().nullish()`. **D5 live sweep finding (docs/schema-sweep.md, 2026-08-11):** same class of bug as `EvnexElectricityTariff.rate` above — `amount` arrives as a numeric string ("21.9396"), not a number. Widened to `z.coerce.number()` for the same reason (the CLI's `.toFixed(2)` display needs a real `number`). |
 | `EvnexEnergyTransaction` | `src/schema/v3/chargePoints.ts` `EvnexEnergyTransaction` | ✅ ported | Only `meterStart`/`startDate` required; `meterStop`/`endDate`/`reason` optional — verified. `meterStop`'s absence-means-still-charging semantics (PLAN.md §10.3) preserved exactly. |
 | `EvnexEnergyUsage` | `src/schema/v3/chargePoints.ts` `EvnexEnergyUsage` | ✅ ported | |
 | `EvnexChargeSchedulePeriod` | `src/schema/v3/chargePoints.ts` `EvnexChargeSchedulePeriod` | ✅ ported | |
@@ -336,8 +336,8 @@ purity every `--json` test in this suite depends on.
 | `EvnexChargePointConnectorMeter` (v3) | `src/schema/v3/chargePoints.ts` `EvnexChargePointConnectorMeter` (re-exported as `EvnexChargePointConnectorMeterV3`) | ✅ ported | `register` → `rawRegister`. `supplyActivePower` optional in both — presence-vs-zero meaningfully distinct (PLAN.md §5 A4, §10.3), preserved by keeping it `.nullish()` rather than defaulting to `0`. |
 | `EvnexChargePointConnector` (v3) | `src/schema/v3/chargePoints.ts` `EvnexChargePointConnector` (re-exported as `EvnexChargePointConnectorV3`) | ✅ ported | Only `meter` optional; `maxVoltage`/`maxAmperage` (absent from the v2 connector) both required — verified. |
 | `EvnexChargePointConnectionConfiguration` | `src/schema/v3/chargePoints.ts` `EvnexChargePointConnectionConfiguration` | ✅ ported | All 4 fields required in both. |
-| `EvnexChargePointDetail` (v3) | `src/schema/v3/chargePoints.ts` `EvnexChargePointDetail` (re-exported as `EvnexChargePointDetailV3`) | ✅ ported | `timeZone` is authoritative here (required, no default) and absent from the list endpoint (PLAN.md §10.2) — confirmed required in both. `connectionConfiguration`/`features`/`iccid`/`isSolarEnabled` optional, everything else required — verified field-for-field against all 20 fields. |
-| `EvnexChargePointSessionAttributes` | `src/schema/v3/chargePoints.ts` `EvnexChargePointSessionAttributes` | ✅ ported | **Every one of the 17 fields is optional in Python** (`= None` on all of them, including `startDate`/`sessionStatus`, per PLAN.md §10.3's explicit warning against "tightening" them) — confirmed the port matches exactly: every field is `.nullish()`, none tightened to required. |
+| `EvnexChargePointDetail` (v3) | `src/schema/v3/chargePoints.ts` `EvnexChargePointDetail` (re-exported as `EvnexChargePointDetailV3`) | ✅ ported | `timeZone` is authoritative here (required, no default) and absent from the list endpoint (PLAN.md §10.2) — confirmed required in both. `connectionConfiguration`/`features`/`iccid`/`isSolarEnabled` optional, everything else required — verified field-for-field against all 20 fields. **D5 live sweep finding (docs/schema-sweep.md, 2026-08-11):** the live response also carries `allowLongTermOfflineCharging` (boolean) and `chargingConfiguration` (a nested tariff/schedule object) — neither declared here nor, per this port's Python source review, in `python-evnex`'s model. Left undeclared deliberately (§2.2's no-`.strict()` rule means this is harmless — the fields are silently dropped, not rejected); modelling `chargingConfiguration`'s shape from a single sample risked encoding an unconfirmed structure. See "Defects found but not fixed" below. |
+| `EvnexChargePointSessionAttributes` | `src/schema/v3/chargePoints.ts` `EvnexChargePointSessionAttributes` | ✅ ported | **Every one of the 17 fields is optional in Python** (`= None` on all of them, including `startDate`/`sessionStatus`, per PLAN.md §10.3's explicit warning against "tightening" them) — confirmed the port matches exactly: every field is `.nullish()`, none tightened to required. **D5 live sweep finding (docs/schema-sweep.md, 2026-08-11):** live sessions also carry `chargingConfiguration`, `cost`, `energyUsage`, and `transaction.id`, none declared here. Left undeclared for the same reason as `chargingConfiguration` on the v3 detail row above — harmless under §2.2, and `cost`/`energyUsage` in particular look like earlier or parallel drafts of the already-modelled `totalCost`/`totalEnergyUsage` fields, not confidently distinguishable from one sample. |
 | `EvnexChargePointSession` | `src/schema/v3/chargePoints.ts` `EvnexChargePointSession` | ✅ ported | `attributes`/`id`/`type` required, `relationships` optional — verified. |
 | `EvnexGetChargePointSessionsResponse` | `src/schema/v3/chargePoints.ts` `EvnexGetChargePointSessionsResponse` | ✅ ported | |
 | (n/a — TS-only) | `sessionEnergyWh` | 🔄 adapted (addition) | Pure addition: meter-delta energy helper (PLAN.md §10.3). Correctly tests for `meterStop`/transaction *presence* (`=== undefined`), never truthiness, and returns `null` (not `0`, not throwing) while a session is still active — verified against the function body. |
@@ -442,9 +442,11 @@ dispatch.
    Low priority: either add a one-line comment recording it as an
    intentional extra-tolerance choice, or tighten it to `.nullable()`
    (present-but-maybe-null, matching Python exactly) if a reviewer prefers
-   exact requiredness parity. D5's live sweep should include at least one
-   v3 response's `included` key in whatever it captures, to settle whether
-   the real API ever omits it.
+   exact requiredness parity. **Update (D5 live sweep, docs/schema-sweep.md,
+   2026-08-11):** `included` was present and populated in both live
+   captures that go through this wrapper — no case of absence observed, on
+   one account. Corroborates Python's stricter reading without proving it;
+   still open.
 
 2. **`src/cli/commands/charge.ts` duplicates `src/cli/commands/resources.ts`'s
    `openClient`/`listChargePoints`.** Python has one `open_client`. Harmless
@@ -463,9 +465,28 @@ dispatch.
    uncertain, not confirmed as a behavioural difference. Low priority given
    this is a one-shot interactive-enrollment code path.
 
+4. **`chargingConfiguration` (v3 charge point detail and sessions) and
+   `allowLongTermOfflineCharging` (v3 charge point detail) are undeclared.**
+   D5's live sweep (docs/schema-sweep.md, 2026-08-11) found both on real
+   responses. `allowLongTermOfflineCharging` is a plain boolean, trivial to
+   add if a consumer needs it. `chargingConfiguration` is a nested
+   tariff/schedule object of real complexity, observed exactly once;
+   modelling its shape from a single sample risked encoding a structure
+   that isn't actually stable across accounts/configurations. Both are
+   harmless to leave undeclared (§2.2's no-`.strict()` rule: silently
+   dropped, never rejected) and are recorded here rather than fixed
+   silently, per D5's own instruction to report a finding rather than
+   patch around it without a trace. Sessions separately carry `cost`,
+   `energyUsage`, and `transaction.id`, also undeclared — `cost`/
+   `energyUsage` look like they may be earlier or parallel drafts of the
+   already-modelled `totalCost`/`totalEnergyUsage`, not confidently
+   distinguishable from one sample either.
+
 None of the above rise to "wave gate failure" severity — no undocumented
 omission was found (every `❌ omitted` row above has a justification), and
 the one genuinely new requiredness gap (#1) makes the port *more* forgiving
 of the live API than Python, not less, which is the safer direction to be
 wrong in for a schema whose exact upstream contract this audit could not
-independently re-verify against a live account.
+independently re-verify against a live account at the time this audit was
+written. It has since been partially re-verified — see the `🔄 adapted`
+rows above dated 2026-08-11, all sourced from D5's live sweep.

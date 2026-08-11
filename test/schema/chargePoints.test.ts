@@ -12,10 +12,12 @@ import {
   ChargingLogic,
   ChargingLogicValues,
   ChargePointStatus,
+  Coordinates,
   E2LEDState,
   E2LEDStateValues,
   EvnexChargePointConnectorMeter,
   EvnexChargePointLoadSchedule,
+  EvnexChargePointSolarConfig,
   EvnexGetChargePointsResponse,
 } from "../../src/schema/chargePoints.js";
 import { CHARGE_POINTS_PAYLOAD } from "../support/fixtures.js";
@@ -159,5 +161,62 @@ describe("unknown fields are tolerated, not rejected (§2.2 — objects are neve
     expect(() => EvnexGetChargePointsResponse.parse(payload)).not.toThrow();
     const parsed = EvnexGetChargePointsResponse.parse(payload);
     expect(parsed.data.items[0]?.id).toBe("cp-0000001");
+  });
+});
+
+describe("Coordinates (PLAN.md §10 / D5 schema sweep regression)", () => {
+  it("parses latitude/longitude as strings, not numbers — live-verified: the wire sends '-41.2865', not -41.2865", () => {
+    const parsed = Coordinates.parse({ latitude: "-41.2865", longitude: "174.7762" });
+    expect(parsed).toEqual({ latitude: "-41.2865", longitude: "174.7762" });
+  });
+
+  it("rejects a numeric latitude/longitude — this schema deliberately does not coerce, matching src/schema/v3/locations.ts's EvnexLocationCoordinates", () => {
+    expect(() => Coordinates.parse({ latitude: -41.2865, longitude: 174.7762 })).toThrow();
+  });
+});
+
+describe("EvnexChargePointSolarConfig (PLAN.md §10 / D5 schema sweep regression)", () => {
+  it("parses ordinary boolean/number values when solar control is supported", () => {
+    const parsed = EvnexChargePointSolarConfig.parse({
+      solarWithSchedule: true,
+      powerSensorInstalled: true,
+      solarStartExportPower: 100,
+      solarStopImportPower: 50,
+    });
+    expect(parsed.solarWithSchedule).toBe(true);
+    expect(parsed.solarStartExportPower).toBe(100);
+  });
+
+  it("parses every field as the literal 'NotSupported' when solar control is unsupported — the exact live-observed shape", () => {
+    const parsed = EvnexChargePointSolarConfig.parse({
+      numChargingPhases: "NotSupported",
+      solarWithSchedule: "NotSupported",
+      allowPhaseSwitchingOnSolar: "NotSupported",
+      powerSensorInstalled: true,
+      solarStartExportPower: "NotSupported",
+      solarStopImportPower: "NotSupported",
+      solarControlTargetOffset: "NotSupported",
+      solarControlTargetPower: "NotSupported",
+    });
+    expect(parsed.solarWithSchedule).toBe("NotSupported");
+    expect(parsed.solarStartExportPower).toBe("NotSupported");
+    expect(parsed.solarStopImportPower).toBe("NotSupported");
+    expect(parsed.numChargingPhases).toBe("NotSupported");
+    expect(parsed.allowPhaseSwitchingOnSolar).toBe("NotSupported");
+    expect(parsed.solarControlTargetOffset).toBe("NotSupported");
+    expect(parsed.solarControlTargetPower).toBe("NotSupported");
+  });
+
+  it("tolerates the four newly-added fields being absent entirely — only ever observed live, never corroborated as required", () => {
+    const parsed = EvnexChargePointSolarConfig.parse({
+      solarWithSchedule: true,
+      powerSensorInstalled: false,
+      solarStartExportPower: 0,
+      solarStopImportPower: 0,
+    });
+    expect(parsed.numChargingPhases).toBeUndefined();
+    expect(parsed.allowPhaseSwitchingOnSolar).toBeUndefined();
+    expect(parsed.solarControlTargetOffset).toBeUndefined();
+    expect(parsed.solarControlTargetPower).toBeUndefined();
   });
 });

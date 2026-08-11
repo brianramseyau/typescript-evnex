@@ -59,7 +59,7 @@ const SYNTHETIC_CHARGE_POINT_DETAIL_V2 = {
         postCode: "6011",
         country: "NZ",
       },
-      coordinates: { latitude: -41.2865, longitude: 174.7762 },
+      coordinates: { latitude: "-41.2865", longitude: "174.7762" },
       chargePointCount: 1,
     },
     configuration: { maxCurrent: 32, plugAndCharge: false },

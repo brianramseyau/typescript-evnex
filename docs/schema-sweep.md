@@ -1,7 +1,7 @@
 # Schema sweep report
 
 - **Mode:** live
-- **Generated:** 2026-08-11T02:09:23.229Z
+- **Generated:** 2026-08-11T02:43:22.961Z
 - **Org id:** `<redacted:orgId>`
 - **Charge point id:** `<redacted:chargePointId>`
 - **Endpoints captured:** 14
@@ -11,15 +11,15 @@
 | Endpoint | Method | Path | Outcome | Extra | Missing | Mismatches |
 |---|---|---|---|---|---|---|
 | `userDetail` | GET | `/v2/apps/user` | ✅ parsed cleanly | 0 | 0 | 0 |
-| `orgChargePoints` | GET | `/v2/apps/organisations/{orgId}/charge-points` | ❌ ZodError — missing/mismatched field(s) below | 1 | 0 | 2 |
+| `orgChargePoints` | GET | `/v2/apps/organisations/{orgId}/charge-points` | ✅ parsed cleanly | 1 | 0 | 0 |
 | `chargePointDetailV2` *(deprecated)* | GET | `/v2/apps/charge-points/{chargePointId}` | ⚠️ HTTP error (404) | 0 | 0 | 0 |
-| `chargePointDetailV3` | GET | `/charge-points/{chargePointId}` | ❌ ZodError — missing/mismatched field(s) below | 2 | 0 | 1 |
+| `chargePointDetailV3` | GET | `/charge-points/{chargePointId}` | ✅ parsed cleanly | 2 | 0 | 0 |
 | `chargePointStatus` | POST | `/charge-points/{chargePointId}/commands/get-status` | ✅ parsed cleanly | 0 | 0 | 0 |
 | `chargePointEnergyMeterReading` | POST | `/charge-points/{chargePointId}/commands/get-energy-meter-reading` | ✅ parsed cleanly | 0 | 0 | 0 |
 | `chargePointOverride` | POST | `/charge-points/{chargePointId}/commands/get-override` | ✅ parsed cleanly | 0 | 0 | 0 |
-| `chargePointSolarConfig` | POST | `/charge-points/{chargePointId}/commands/get-solar` | ❌ ZodError — missing/mismatched field(s) below | 4 | 0 | 3 |
+| `chargePointSolarConfig` | POST | `/charge-points/{chargePointId}/commands/get-solar` | ✅ parsed cleanly | 0 | 0 | 0 |
 | `chargePointTransactionsV2` *(deprecated)* | GET | `/v2/apps/charge-points/{chargePointId}/transactions` | ⚠️ HTTP error (404) | 0 | 0 | 0 |
-| `chargePointSessions` | GET | `/charge-points/{chargePointId}/sessions` | ❌ ZodError — missing/mismatched field(s) below | 92 | 0 | 46 |
+| `chargePointSessions` | GET | `/charge-points/{chargePointId}/sessions` | ✅ parsed cleanly | 92 | 0 | 0 |
 | `orgLocations` | GET | `/v2/apps/organisations/{orgId}/locations` | ✅ parsed cleanly | 4 | 0 | 0 |
 | `orgInsight` | GET | `/organisations/{orgId}/summary/insights` | ✅ parsed cleanly | 1 | 0 | 0 |
 | `orgSummaryStatusV2` | GET | `/v2/apps/organisations/{orgId}/summary/status` | ⚠️ HTTP error (404) | 0 | 0 | 0 |
@@ -30,7 +30,7 @@
 ### `orgChargePoints` — Org charge points (v2, flat envelope)
 
 - **Method / path template:** `GET /v2/apps/organisations/{orgId}/charge-points`
-- **Outcome:** ❌ ZodError — missing/mismatched field(s) below
+- **Outcome:** ✅ parsed cleanly
 - **HTTP status:** 200
 
 **1. Fields the wire returned that our schema does not declare:**
@@ -40,8 +40,7 @@
 None observed this run. Per PLAN.md: this does not prove any field is mandatory — only that every field happened to be present in this one sample. Absence of evidence for optionality is not evidence of requiredness.
 
 **3. Type and shape mismatches:**
-- `data.items[0].location.coordinates.latitude` (invalid_type): Invalid input: expected number, received string
-- `data.items[0].location.coordinates.longitude` (invalid_type): Invalid input: expected number, received string
+None observed.
 
 **4. Divergence from the Python model:**
 - evnex/schema/charge_points.py: EvnexChargePoint — connectors/lastHeard optional (`| None = None`) in both; maxCurrent/tokenRequired/needsRegistrationInformation required in both. No known divergence.
@@ -90,7 +89,7 @@ None observed this run. Per PLAN.md: this does not prove any field is mandatory 
         "name": "<redacted:name>",
         "networkStatus": "ONLINE",
         "serial": "<redacted:serial>",
-        "networkStatusUpdatedDate": "2026-08-11T02:08:17.456Z",
+        "networkStatusUpdatedDate": "2026-08-11T02:40:02.436Z",
         "updatedDate": "2026-08-05T08:51:04.045Z",
         "location": {
           "address": {
@@ -151,7 +150,7 @@ None observed.
 ### `chargePointDetailV3` — Charge point detail (v3, JSON:API envelope)
 
 - **Method / path template:** `GET /charge-points/{chargePointId}`
-- **Outcome:** ❌ ZodError — missing/mismatched field(s) below
+- **Outcome:** ✅ parsed cleanly
 - **HTTP status:** 200
 
 **1. Fields the wire returned that our schema does not declare:**
@@ -162,7 +161,7 @@ None observed.
 None observed this run. Per PLAN.md: this does not prove any field is mandatory — only that every field happened to be present in this one sample. Absence of evidence for optionality is not evidence of requiredness.
 
 **3. Type and shape mismatches:**
-- `data.attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
+None observed.
 
 **4. Divergence from the Python model:**
 - evnex/schema/v3/charge_points.py: EvnexChargePointDetail — timeZone required (no default) in both; connectionConfiguration/features/iccid/isSolarEnabled optional in both. No known divergence on the attributes object itself.
@@ -265,7 +264,7 @@ None observed this run. Per PLAN.md: this does not prove any field is mandatory 
       "model": "E2F-25VO",
       "name": "<redacted:name>",
       "networkStatus": "ONLINE",
-      "networkStatusUpdatedDate": "2026-08-11T02:08:17.456Z",
+      "networkStatusUpdatedDate": "2026-08-11T02:40:02.436Z",
       "ocppChargePointId": "<redacted:id>",
       "profiles": {},
       "serial": "<redacted:serial>",
@@ -320,45 +319,6 @@ None observed this run. Per PLAN.md: this does not prove any field is mandatory 
 ```
 
 </details>
-### `chargePointSolarConfig` — Charge point solar config (command: get-solar)
-
-- **Method / path template:** `POST /charge-points/{chargePointId}/commands/get-solar`
-- **Outcome:** ❌ ZodError — missing/mismatched field(s) below
-- **HTTP status:** 200
-
-**1. Fields the wire returned that our schema does not declare:**
-- `numChargingPhases`
-- `allowPhaseSwitchingOnSolar`
-- `solarControlTargetOffset`
-- `solarControlTargetPower`
-
-**2. Fields our schema requires that the wire omitted:**
-None observed this run. Per PLAN.md: this does not prove any field is mandatory — only that every field happened to be present in this one sample. Absence of evidence for optionality is not evidence of requiredness.
-
-**3. Type and shape mismatches:**
-- `solarWithSchedule` (invalid_type): Invalid input: expected boolean, received string
-- `solarStartExportPower` (invalid_type): Invalid input: expected number, received string
-- `solarStopImportPower` (invalid_type): Invalid input: expected number, received string
-
-**4. Divergence from the Python model:**
-- evnex/schema/charge_points.py: EvnexChargePointSolarConfig — all 4 fields required in both, no known divergence. No fixture existed in either project prior to this sweep for a charger the sweep operator actually owns; capture is genuinely new evidence either way.
-
-<details><summary>Redacted response body</summary>
-
-```json
-{
-  "numChargingPhases": "NotSupported",
-  "solarWithSchedule": "NotSupported",
-  "allowPhaseSwitchingOnSolar": "NotSupported",
-  "powerSensorInstalled": true,
-  "solarStartExportPower": "NotSupported",
-  "solarStopImportPower": "NotSupported",
-  "solarControlTargetOffset": "NotSupported",
-  "solarControlTargetPower": "NotSupported"
-}
-```
-
-</details>
 ### `chargePointTransactionsV2` — Charge point transactions (v2, deprecated) (deprecated)
 
 - **Method / path template:** `GET /v2/apps/charge-points/{chargePointId}/transactions`
@@ -388,7 +348,7 @@ None observed.
 ### `chargePointSessions` — Charge point sessions (v3, JSON:API envelope)
 
 - **Method / path template:** `GET /charge-points/{chargePointId}/sessions`
-- **Outcome:** ❌ ZodError — missing/mismatched field(s) below
+- **Outcome:** ✅ parsed cleanly
 - **HTTP status:** 200
 
 **1. Fields the wire returned that our schema does not declare:**
@@ -489,52 +449,7 @@ None observed.
 None observed this run. Per PLAN.md: this does not prove any field is mandatory — only that every field happened to be present in this one sample. Absence of evidence for optionality is not evidence of requiredness.
 
 **3. Type and shape mismatches:**
-- `data[0].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[0].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[1].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[1].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[2].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[2].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[3].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[3].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[4].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[4].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[5].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[5].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[6].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[6].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[7].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[7].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[8].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[8].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[9].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[9].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[10].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[10].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[11].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[11].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[12].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[12].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[13].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[13].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[14].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[14].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[15].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[15].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[16].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[16].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[17].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[17].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[18].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[18].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[19].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[19].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[20].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[20].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[21].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[21].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
-- `data[22].attributes.electricityCost.tariffs[0].rate` (invalid_type): Invalid input: expected number, received string
-- `data[22].attributes.totalCost.amount` (invalid_type): Invalid input: expected number, received string
+None observed.
 
 **4. Divergence from the Python model:**
 - evnex/schema/v3/charge_points.py: EvnexChargePointSessionAttributes — every one of the 17 fields is `= None` (optional) in Python, including startDate/sessionStatus; the port matches exactly (all .nullish()). No known divergence. This is the endpoint PLAN.md §10.3/§10.4 warn hardest against ever tightening.
@@ -866,7 +781,7 @@ None observed.
         "model": "E2F-25VO",
         "name": "<redacted:name>",
         "networkStatus": "ONLINE",
-        "networkStatusUpdatedDate": "2026-08-11T02:09:19.204Z",
+        "networkStatusUpdatedDate": "2026-08-11T02:43:19.667Z",
         "ocppChargePointId": "<redacted:id>",
         "profiles": {},
         "serial": "<redacted:serial>",
@@ -1122,9 +1037,9 @@ None observed.
 ```json
 {
   "data": {
-    "timestamp": "2026-08-11T02:09:17.800Z",
-    "chargingActivePower": -0.08509015291929245,
-    "supplyActivePower": 2173.469482421875
+    "timestamp": "2026-08-11T02:43:17.441Z",
+    "chargingActivePower": 0.016661008819937706,
+    "supplyActivePower": 2408.26708984375
   },
   "status": "Accepted"
 }
@@ -1154,6 +1069,40 @@ None observed.
 ```json
 {
   "chargeNow": false
+}
+```
+
+</details>
+### `chargePointSolarConfig` — Charge point solar config (command: get-solar)
+
+- **Method / path template:** `POST /charge-points/{chargePointId}/commands/get-solar`
+- **Outcome:** ✅ parsed cleanly
+- **HTTP status:** 200
+
+**1. Fields the wire returned that our schema does not declare:**
+None observed.
+
+**2. Fields our schema requires that the wire omitted:**
+None observed this run. Per PLAN.md: this does not prove any field is mandatory — only that every field happened to be present in this one sample. Absence of evidence for optionality is not evidence of requiredness.
+
+**3. Type and shape mismatches:**
+None observed.
+
+**4. Divergence from the Python model:**
+- evnex/schema/charge_points.py: EvnexChargePointSolarConfig — all 4 fields required in both, no known divergence. No fixture existed in either project prior to this sweep for a charger the sweep operator actually owns; capture is genuinely new evidence either way.
+
+<details><summary>Redacted response body</summary>
+
+```json
+{
+  "numChargingPhases": "NotSupported",
+  "solarWithSchedule": "NotSupported",
+  "allowPhaseSwitchingOnSolar": "NotSupported",
+  "powerSensorInstalled": true,
+  "solarStartExportPower": "NotSupported",
+  "solarStopImportPower": "NotSupported",
+  "solarControlTargetOffset": "NotSupported",
+  "solarControlTargetPower": "NotSupported"
 }
 ```
 

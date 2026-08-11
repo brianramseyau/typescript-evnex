@@ -13,6 +13,12 @@ describe("EvnexElectricityTariff", () => {
       type: "Flat",
     });
   });
+
+  it("coerces a numeric-string rate to a number — live-verified (D5 schema sweep, docs/schema-sweep.md): the wire sends '0.3', not 0.3", () => {
+    const parsed = EvnexElectricityTariff.parse({ start: 0, rate: "0.3", type: "Flat" });
+    expect(parsed.rate).toBe(0.3);
+    expect(typeof parsed.rate).toBe("number");
+  });
 });
 
 describe("EvnexElectricityCost", () => {
@@ -50,5 +56,11 @@ describe("EvnexElectricityCostTotal", () => {
   it("tolerates distribution being entirely absent", () => {
     const parsed = EvnexElectricityCostTotal.parse({ currency: "NZD", amount: 0 });
     expect(parsed.distribution).toBeUndefined();
+  });
+
+  it("coerces a numeric-string amount to a number — live-verified (D5 schema sweep, docs/schema-sweep.md): the wire sends '0', not 0", () => {
+    const parsed = EvnexElectricityCostTotal.parse({ currency: "AUD", amount: "21.9396" });
+    expect(parsed.amount).toBe(21.9396);
+    expect(typeof parsed.amount).toBe("number");
   });
 });

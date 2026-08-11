@@ -115,7 +115,7 @@ export function chargePointItem(cpId: string, name: string, serial: string) {
         postCode: "6011",
         country: "NZ",
       },
-      coordinates: { latitude: -41.2865, longitude: 174.7762 },
+      coordinates: { latitude: "-41.2865", longitude: "174.7762" },
       chargePointCount: 1,
     },
     details: { model: "E2", vendor: "Evnex", firmware: "1.2.3" },

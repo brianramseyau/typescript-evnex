@@ -135,9 +135,15 @@ export type EvnexChargePointConnectorMeter = z.infer<
   typeof EvnexChargePointConnectorMeter
 >;
 
+// Live-verified (D5 schema sweep, docs/schema-sweep.md): the wire sends
+// these as strings, not numbers — matching src/schema/v3/locations.ts's
+// EvnexLocationCoordinates, which already made this call. Kept as strings
+// rather than coerced to numbers, for the same reason: no arithmetic is
+// done on them in this package, and coercion would just be an extra step
+// that could itself throw on a malformed value.
 export const Coordinates = z.object({
-  latitude: z.number(),
-  longitude: z.number(),
+  latitude: z.string(),
+  longitude: z.string(),
 });
 export type Coordinates = z.infer<typeof Coordinates>;
 
@@ -187,11 +193,25 @@ export const EvnexChargePointDetails = z.object({
 });
 export type EvnexChargePointDetails = z.infer<typeof EvnexChargePointDetails>;
 
+// Live-verified (D5 schema sweep, docs/schema-sweep.md): on a charger with
+// solar control unsupported, every one of these reports the literal string
+// "NotSupported" instead of its normal type — the same pattern
+// EvnexChargePointOverrideConfig.chargeNow below already handles. The four
+// extra fields (numChargingPhases, allowPhaseSwitchingOnSolar,
+// solarControlTargetOffset, solarControlTargetPower) were previously
+// undeclared entirely; added here now that a real response is on record,
+// but every one of them has only ever been observed as "NotSupported" — the
+// non-NotSupported type is inferred from the field name, not corroborated
+// by a captured value, so each stays nullish rather than required.
 export const EvnexChargePointSolarConfig = z.object({
-  solarWithSchedule: z.boolean(),
+  solarWithSchedule: z.union([z.boolean(), z.literal("NotSupported")]),
   powerSensorInstalled: z.boolean(),
-  solarStartExportPower: z.number(),
-  solarStopImportPower: z.number(),
+  solarStartExportPower: z.union([z.number(), z.literal("NotSupported")]),
+  solarStopImportPower: z.union([z.number(), z.literal("NotSupported")]),
+  numChargingPhases: z.union([z.number(), z.literal("NotSupported")]).nullish(),
+  allowPhaseSwitchingOnSolar: z.union([z.boolean(), z.literal("NotSupported")]).nullish(),
+  solarControlTargetOffset: z.union([z.number(), z.literal("NotSupported")]).nullish(),
+  solarControlTargetPower: z.union([z.number(), z.literal("NotSupported")]).nullish(),
 });
 export type EvnexChargePointSolarConfig = z.infer<typeof EvnexChargePointSolarConfig>;
 
