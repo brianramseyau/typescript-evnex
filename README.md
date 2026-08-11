@@ -307,7 +307,7 @@ require an inline comment naming a concrete reason and are audited.
 
 See [`foundational/PLAN.md`](foundational/PLAN.md) for the architecture, the
 porting rules every contributor should follow, and the module-by-module map back
-to the Python source.
+to the Python source. See [`RELEASING.md`](RELEASING.md) for how to cut a release.
 
 ## Licence
 
