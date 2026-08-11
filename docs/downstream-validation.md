@@ -62,6 +62,75 @@ check of it.
 module that owns it, not something to patch downstream or in
 `ev-charging-log`.** File it; the fix belongs in `src/schema/**`.
 
+### 1a. Results (2026-08-11, against the real account)
+
+All seven checklist items pass. Method used, exactly per the brief above:
+`npm pack`, installed the tarball into a scratch branch of
+`ev-charging-log` (`d5-typescript-evnex-ab-test`, never merged, never
+pushed), pointed at a `.backup`-consistent copy of the real SQLite database
+(never the live one — the scratch copy is what any writes landed in).
+
+`src/lib/server/evnex-client.ts` and `evnex-auth.ts` were rewritten to call
+into this package (`Evnex` / `EvnexAuth` from `evnex` / `evnex/auth`), with
+their exported function names, parameter shapes, and error classes kept
+identical on purpose — every caller (`evnex-token.ts`, the settings/sessions
+routes) needed zero changes, isolating the diff to exactly the two files
+PLAN.md names. `fetchSessions`'s energy figure now comes from this package's
+own `sessionEnergyWh` helper (divided by 1000 for the app's kWh field)
+instead of the app hand-deriving `(meterStop − meterStart) / 1000` itself —
+one fewer independent implementation of the same arithmetic.
+
+The literal "for one poll cycle, run both paths and diff the results": the
+pre-swap implementation was restored from git as scratch `*.old.ts` copies
+alongside the swapped-in versions, and both were called independently,
+in-process, against the same live account in the same test run — not
+inferred from database state, an actual side-by-side call/diff.
+
+1. ✅ **SRP sign-in.** Confirmed independently twice: once directly against
+   this package's own `evnex auth login` CLI command earlier in this same
+   validation pass, and again here via `EvnexAuth.forceRefresh` succeeding
+   (a refresh-token-only resume still exercises the same Cognito adapter).
+2. ✅ **Refresh-token-only resume.** Both the old and new implementations
+   refreshed successfully from the stored refresh token alone, no password,
+   yielding the same access-token expiry.
+3. ✅ **No `ZodError` on live responses.** `getOrgChargePoints`,
+   `getChargePointDetailV3` (via `fetchChargePoints`'s per-charger detail
+   lookup) and `getChargePointSessions` all parsed cleanly — this is _after_
+   the four schema fixes from the standalone live sweep (§2 below); before
+   those fixes, this step would have failed with the same `ZodError`s the
+   sweep report documents.
+4. ✅ **Field-for-field session match.** `orgId`, the charge point list
+   (id/name/timeZone), and all 23 real sessions in range (id, `startDate`,
+   `sessionStatus`, energy) matched exactly between the old and new
+   implementations, zero diffs.
+5. ⚠️ **Not independently verifiable through `ev-charging-log`.** That app
+   never touches a load schedule at all (it only reads charge-point detail,
+   list, and sessions), and the schema sweep's own §2 run found
+   `chargePointDetailV2` — the only read endpoint that carries one — now
+   returns HTTP 404 on this account (see its entry in `docs/schema-sweep.md`:
+   likely withdrawn, being deprecated). The two endpoints that write a load
+   schedule are explicitly out of the read-only sweep's scope. The §10.1
+   regression (`timezone` as `.nullish()`) has unit-test coverage
+   (`test/schema/chargePoints.test.ts`) but no live corroboration from this
+   pass — recorded here rather than silently marked done.
+6. ✅ **CLI commands render plausible output.** `evnex status`,
+   `charge-points list`, and `sessions list` all ran against the real
+   account and produced sensible, well-formed output (charger name/status,
+   the charger's id/name/serial/network status, and a session history table
+   with real dates/energy/cost).
+7. ✅ **Schema sweep clean.** See §2 below and `docs/schema-sweep.md` — all
+   11 reachable endpoints parse cleanly after the fixes documented in
+   `PARITY.md`.
+
+**Fixtures.** No new fixtures were added to `test/support/fixtures.ts` from
+this pass specifically — the schema sweep (§2) already captured and
+committed redacted live payloads for the endpoints this checklist exercises
+(`orgChargePoints`, `chargePointDetailV3`, `chargePointSessions`), and the
+schema-level regression tests added alongside the sweep's fixes
+(`test/schema/chargePoints.test.ts`, `test/schema/v3/cost.test.ts`) already
+pin the exact shapes this checklist would otherwise be adding fixtures to
+guard against.
+
 ---
 
 ## 2. The schema sweep (item 7)
