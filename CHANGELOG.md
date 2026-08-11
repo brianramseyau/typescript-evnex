@@ -19,12 +19,12 @@ public surface, audited for parity against the Python source
 (see `PARITY.md` and `test/PARITY.md`) with 855 tests and 100% line and
 branch coverage per file.
 
-**Not yet validated against a live Evnex account.** This release has been
-checked against upstream's own test fixtures and a line-by-line parity
-audit, but not yet exercised end-to-end against real hardware or a live
-Cognito pool — that validation is tracked separately and has not run yet.
-Treat the SRP handshake, live response parsing, and any endpoint without a
-captured fixture as unconfirmed until it has.
+Validated end-to-end against a live Evnex account and real hardware
+(2026-08-11): interactive sign-in, the full CLI surface, and a schema sweep
+across every reachable endpoint, cross-checked against an independent
+consumer application. That pass found and fixed four real schema defects
+(below) and one authentication bug; see `docs/downstream-validation.md`
+for the full checklist and evidence.
 
 ### Added
 
@@ -50,6 +50,25 @@ captured fixture as unconfirmed until it has.
 - Optional `qrcode` peer for terminal QR rendering during MFA enrollment;
   without it, enrollment falls back to printing the `otpauth://` URI, which
   upstream treats as a supported opt-out rather than a required dependency.
+
+### Fixed
+
+Found by the live validation pass above, all prior to this first release:
+
+- SRP sign-in: Cognito's `PASSWORD_VERIFIER` challenge response can omit the
+  `Session` field entirely, which the port incorrectly treated as an error —
+  this broke every real sign-in. `Session` is now optional throughout the
+  challenge flow, matching AWS's own documented behaviour.
+- `Coordinates.latitude`/`longitude` (v2 charge points) are sent as strings
+  on the wire, not numbers — schema corrected to match, aligning with the
+  v3 `locations` schema, which already had this right.
+- `EvnexElectricityTariff.rate` and `EvnexElectricityCostTotal.amount` are
+  sent as numeric strings; schema now coerces them to `number` so downstream
+  arithmetic (`.toFixed()`) keeps working, matching the existing convention.
+- `EvnexChargePointSolarConfig`'s solar fields can carry the literal string
+  `"NotSupported"` in place of their normal type, the same sentinel already
+  handled elsewhere (`chargeNow`) — now unioned in here too, plus four
+  previously-undeclared fields the live response includes.
 
 ### Dependencies
 

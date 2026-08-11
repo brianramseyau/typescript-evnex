@@ -4,15 +4,15 @@ TypeScript client for the [Evnex](https://www.evnex.com/) EV charger Cloud API.
 
 A faithful port of [`hardbyte/python-evnex`](https://github.com/hardbyte/python-evnex).
 
-> **Status: code-complete and audited**, symbol-for-symbol against
-> `python-evnex` 0.7.0 (tracked in [`PARITY.md`](PARITY.md)), with 100% line
-> and branch coverage enforced per file. **It has not yet been run against a
-> live Evnex account** — every test to date is offline, against fixtures
-> inherited from `python-evnex`'s own suite, so the SRP handshake and the
-> response schemas are corroborated but not independently confirmed. It is
-> not yet published to npm — install it from a clone or a built tarball until
-> it is. See [`foundational/PLAN.md`](foundational/PLAN.md) for the porting
-> plan and the definition of done.
+> **Status: code-complete, audited, and validated against a live account.**
+> A symbol-for-symbol port of `python-evnex` 0.7.0 (tracked in
+> [`PARITY.md`](PARITY.md)), with 100% line and branch coverage enforced per
+> file, plus a live-account validation pass (2026-08-11) covering
+> interactive sign-in, the full CLI, and a schema sweep of every reachable
+> endpoint cross-checked against an independent consumer app — see
+> [`docs/downstream-validation.md`](docs/downstream-validation.md). See
+> [`foundational/PLAN.md`](foundational/PLAN.md) for the porting plan and
+> the definition of done.
 
 Author not affiliated with Evnex.
 
