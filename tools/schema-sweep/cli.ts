@@ -58,6 +58,7 @@ interface CliOptions {
   force: boolean;
   org?: string;
   chargePoint?: string;
+  redactTerms: string[];
 }
 
 function parseArgs(argv: readonly string[]): CliOptions {
@@ -67,6 +68,7 @@ function parseArgs(argv: readonly string[]): CliOptions {
   let force = false;
   let org: string | undefined;
   let chargePoint: string | undefined;
+  const redactTerms: string[] = [];
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -83,6 +85,10 @@ function parseArgs(argv: readonly string[]): CliOptions {
       i += 1;
     } else if (arg === "--charge-point") {
       chargePoint = argv[i + 1];
+      i += 1;
+    } else if (arg === "--redact") {
+      const term = argv[i + 1];
+      if (term) redactTerms.push(term);
       i += 1;
     } else if (arg === "--dry-run" || arg === undefined) {
       // handled above / not a flag with a value
@@ -114,6 +120,7 @@ function parseArgs(argv: readonly string[]): CliOptions {
     force,
     org,
     chargePoint,
+    redactTerms,
   };
 }
 
@@ -235,8 +242,10 @@ async function main(): Promise<void> {
     generatedAt: new Date().toISOString(),
     orgId: result.finalContext.orgId,
     chargePointId: result.finalContext.chargePointId,
+    locationId: result.finalContext.locationId,
     aborted: result.aborted,
     abortReason: result.abortReason,
+    redactTerms: options.redactTerms,
   });
 
   mkdirSync(dirname(options.reportPath), { recursive: true });

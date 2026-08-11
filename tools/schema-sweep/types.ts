@@ -8,10 +8,18 @@ import type { z } from "zod";
 import type { RequestSpec } from "../../src/http/transport.js";
 import type { ErrorClass } from "../../src/http/retry.js";
 
-/** What the sweep resolves as it walks the graph — org id, then a charge point id. */
+/** What the sweep resolves as it walks the graph — org id, then a charge point id, then a location id. */
 export interface SweepContext {
   orgId?: string | undefined;
   chargePointId?: string | undefined;
+  /**
+   * Discovered opportunistically (not needed to build any request path, only
+   * to redact it): a location id ties directly to a physical address
+   * (PLAN.md's D5 sweep found the residential address itself is not
+   * key-redactable everywhere it's echoed), so it gets the same
+   * global-value redaction treatment as orgId/chargePointId in the report.
+   */
+  locationId?: string | undefined;
 }
 
 /** How an endpoint's single attempt this run concluded. */
@@ -62,7 +70,7 @@ export interface EndpointCaptureRecord {
   title: string;
   deprecated: boolean;
   method: string;
-  /** Path template, e.g. "/charge-points/{chargePointId}/sessions" — never the resolved id-bearing path (PLAN.md: ids are not on the redaction list, but the template avoids the question entirely). */
+  /** Path template, e.g. "/charge-points/{chargePointId}/sessions" — never the resolved id-bearing path, so this alone never needs redaction. */
   pathTemplate: string;
   capturedAt: string;
   outcome: CaptureOutcome;
@@ -78,6 +86,17 @@ export interface EndpointCaptureRecord {
   fixtureIsUpstream?: boolean | undefined;
   /** The redacted response body — a JSON value for a parsed body, or a redacted string for one that failed JSON.parse. Never the raw unredacted body. */
   redactedBody?: unknown;
+  /**
+   * Context (org/charge-point/location id) this endpoint's *raw* body
+   * yielded, captured before redaction ran. Ids are themselves redacted in
+   * `redactedBody` (any key equal to or ending in "id" — see redact.ts), so
+   * on a resumed run `walk.ts` must not try to re-derive context by reading
+   * ids back out of the persisted, already-redacted body; it reads this
+   * field instead. This value is written to the (gitignored)
+   * `schema-sweep-output/` cache file — never into the committed report,
+   * which only ever sees `redactedBody`.
+   */
+  discoveredContext?: Partial<SweepContext> | undefined;
 }
 
 export interface EndpointDefinition {

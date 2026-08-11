@@ -118,12 +118,27 @@ describe("ENDPOINTS", () => {
     const orgChargePoints = ENDPOINTS_BY_ID.get("orgChargePoints");
     expect(
       orgChargePoints?.extractContext?.({ data: { items: [{ id: "cp-a" }] } }, {}),
-    ).toEqual({ chargePointId: "cp-a" });
+    ).toEqual({ chargePointId: "cp-a", locationId: undefined });
     expect(orgChargePoints?.extractContext?.({ data: { items: [] } }, {})).toEqual({
       chargePointId: undefined,
+      locationId: undefined,
     });
     expect(orgChargePoints?.extractContext?.(undefined, {})).toEqual({
       chargePointId: undefined,
+      locationId: undefined,
     });
+  });
+
+  it("orgChargePoints' extractContext also reads the first charge point's location id — it ties to a physical address, so the report redacts it the same as org/charge point id", () => {
+    const orgChargePoints = ENDPOINTS_BY_ID.get("orgChargePoints");
+    expect(
+      orgChargePoints?.extractContext?.(
+        { data: { items: [{ id: "cp-a", location: { id: "loc-a" } }] } },
+        {},
+      ),
+    ).toEqual({ chargePointId: "cp-a", locationId: "loc-a" });
+    expect(
+      orgChargePoints?.extractContext?.({ data: { items: [{ id: "cp-a" }] } }, {}),
+    ).toEqual({ chargePointId: "cp-a", locationId: undefined });
   });
 });

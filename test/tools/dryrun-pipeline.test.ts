@@ -50,6 +50,7 @@ describe("dry-run pipeline", () => {
     expect(result.finalContext).toEqual({
       orgId: "org-0000",
       chargePointId: "cp-0000001",
+      locationId: "loc-0000001",
     });
   });
 
@@ -109,8 +110,14 @@ describe("dry-run pipeline", () => {
       aborted: result.aborted,
     });
     expect(report).toMatch(/DRY RUN/);
-    expect(report).toContain("org-0000");
-    expect(report).toContain("cp-0000001");
+    // The org id and charge point id are redacted everywhere in the rendered
+    // report, not just in field-name-keyed bodies — they are account-
+    // identifying values, so the raw ids must never appear even in dry-run
+    // output.
+    expect(report).not.toContain("org-0000");
+    expect(report).not.toContain("cp-0000001");
+    expect(report).toContain("<redacted:orgId>");
+    expect(report).toContain("<redacted:chargePointId>");
     // Every endpoint id appears somewhere in the report.
     for (const endpoint of ENDPOINTS) {
       expect(report).toContain(endpoint.id);

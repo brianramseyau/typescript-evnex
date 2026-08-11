@@ -72,6 +72,25 @@ function extractChargePointId(rawJson: unknown): string | undefined {
   return typeof first?.id === "string" ? first.id : undefined;
 }
 
+/**
+ * Best-effort read of `data.items[0].location.id` from the same
+ * charge-points-list body. Not needed to build any request path — this
+ * endpoint's own `location` object is embedded inline — but a location id
+ * ties directly to a residential address, and it also appears independently
+ * in `orgLocations` and the v3 charge point detail's `included` array.
+ * Capturing it here lets the report redact it everywhere, the same way it
+ * already does for org/charge point id.
+ */
+function extractLocationId(rawJson: unknown): string | undefined {
+  const data = (rawJson as { data?: unknown } | null)?.data as
+    { items?: unknown } | undefined;
+  const items = data?.items;
+  if (!Array.isArray(items) || items.length === 0) return undefined;
+  const first = items[0] as { location?: unknown } | undefined;
+  const location = first?.location as { id?: unknown } | undefined;
+  return typeof location?.id === "string" ? location.id : undefined;
+}
+
 export const ENDPOINTS: readonly EndpointDefinition[] = [
   {
     id: "userDetail",
@@ -104,7 +123,10 @@ export const ENDPOINTS: readonly EndpointDefinition[] = [
     pythonNotes: [
       "evnex/schema/charge_points.py: EvnexChargePoint — connectors/lastHeard optional (`| None = None`) in both; maxCurrent/tokenRequired/needsRegistrationInformation required in both. No known divergence.",
     ],
-    extractContext: (rawJson) => ({ chargePointId: extractChargePointId(rawJson) }),
+    extractContext: (rawJson) => ({
+      chargePointId: extractChargePointId(rawJson),
+      locationId: extractLocationId(rawJson),
+    }),
   },
   {
     id: "chargePointDetailV2",

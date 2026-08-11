@@ -173,7 +173,7 @@ describe("runWalk", () => {
     expect(stub.callsFor("GET", "/v2/apps/user")).toHaveLength(1);
   });
 
-  it("a cached capture's redacted (but not-actually-sensitive) ids still drive context discovery on resume", async () => {
+  it("a cached capture's discoveredContext (extracted from the raw body at capture time) still drives context discovery on resume, even though ids are redacted in the stored body itself", async () => {
     const stub = createStubFetch([
       {
         method: "GET",
@@ -191,6 +191,15 @@ describe("runWalk", () => {
       fetch: stub.fetch,
     });
     await withFakeTimers(() => runWalk({ transport, auth: fakeAuth(), outDir }));
+
+    // The persisted capture file's redactedBody has the org/charge point id
+    // itself redacted (any key equal to or ending in "id" — redact.ts), so
+    // this assertion also proves resume does not depend on reading them back
+    // out of that body.
+    const cachedUserDetail = JSON.parse(
+      readFileSync(join(outDir, "userDetail.json"), "utf8"),
+    ) as { redactedBody: { data: { organisations: Array<{ id: string }> } } };
+    expect(cachedUserDetail.redactedBody.data.organisations[0]?.id).toBe("<redacted:id>");
 
     // Second run: no routes needed at all for userDetail/orgChargePoints —
     // if context discovery required a fresh request, this would throw

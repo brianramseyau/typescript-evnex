@@ -28,6 +28,18 @@
  * (PLAN.md's D5 brief: it makes the evidence worthless), so this list is
  * deliberately an exact-match allowlist of known-sensitive field names
  * rather than a broad substring/heuristic match.
+ *
+ * One deliberate exception to "exact match only": any key equal to, or
+ * ending in, `id` (normalised) is treated as sensitive regardless of
+ * whether it is on the curated list — `id`, `connectorId`, a future
+ * `sessionId`/`transactionId`, anything. Resource ids are pervasive
+ * (relationships, nested includes, arrays of many items) and each one is a
+ * live handle to a specific account/device/session; enumerating every key
+ * name an id could be called is a losing game the org/charge-point/location
+ * id findings already proved (PLAN.md's D5 sweep). Checked against every
+ * schema field name in this codebase before landing: no legitimate
+ * non-id field happens to end in "id" here (verified — no `valid`, `paid`,
+ * `void`-shaped keys exist), so this generalisation costs nothing today.
  */
 
 /** Sensitive key (normalised: lowercase, non-alphanumeric stripped) -> marker label. */
@@ -50,14 +62,30 @@ const REDACTED_KEYS: Readonly<Record<string, string>> = {
   passwordclaimsignature: "srp",
   passwordclaimsecretblock: "srp",
   verifier: "srp",
-  // Account / hardware identity.
+  // Account / hardware identity. ocppChargePointId, iccid, and evseId are
+  // deliberately not listed here: they are all id-shaped keys (end in "id"),
+  // so isIdShapedKey below already redacts them — a specific label added
+  // nothing a human reviewer couldn't already read off the preserved key name.
   email: "email",
   serial: "serial",
-  ocppchargepointid: "ocppChargePointId",
-  iccid: "iccid",
-  // Location.
+  // Every `name` field observed live on this account was personally
+  // identifying — an org name, a location's display name defaulting to
+  // "<email>'s Home", a charger named after its owner. Rather than lean on
+  // the operator noticing and hand-supplying `--redact` each run (an
+  // undocumented-by-nature, easy-to-forget escape hatch for something that
+  // recurs by default), redact the key outright. `--redact` remains for
+  // genuinely one-off, unanticipated PII this can't cover.
+  name: "name",
+  // Location — a residential charger's location is someone's home address.
   latitude: "coordinate",
   longitude: "coordinate",
+  address1: "address",
+  address2: "address",
+  address3: "address",
+  city: "address",
+  postcode: "address",
+  state: "address",
+  icpnumber: "icpNumber",
   // Generic credential catch-alls — not currently produced by any modelled
   // schema, kept as a defensive backstop for an unmodelled/additive field a
   // future API version might introduce.
@@ -69,14 +97,21 @@ function normaliseKey(key: string): string {
   return key.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+/** True if `normalised` is `id` or ends with `id` — see the module doc comment. */
+function isIdShapedKey(normalised: string): boolean {
+  return normalised === "id" || normalised.endsWith("id");
+}
+
 /** True if `key` names a field this module redacts the value of. */
 export function isSensitiveKey(key: string): boolean {
-  return normaliseKey(key) in REDACTED_KEYS;
+  const normalised = normaliseKey(key);
+  return normalised in REDACTED_KEYS || isIdShapedKey(normalised);
 }
 
 function markerFor(key: string): string {
-  const label = REDACTED_KEYS[normaliseKey(key)];
-  return `<redacted:${label ?? "value"}>`;
+  const normalised = normaliseKey(key);
+  const label = REDACTED_KEYS[normalised] ?? (isIdShapedKey(normalised) ? "id" : "value");
+  return `<redacted:${label}>`;
 }
 
 /**
@@ -107,6 +142,16 @@ export function redactJson(value: unknown): unknown {
       out[key] = redactJson(child);
     }
     return out;
+  }
+  // A free-text field the operator named something innocuous (a charger's
+  // display name, a location's label, ...) can still embed an  email address
+  // literally in its value — observed live: a location named
+  // "<email>'s Home". Key-based redaction above only catches sensitive
+  // *keys*; this catches the value pattern wherever it appears, independent
+  // of which key holds it.
+  if (typeof value === "string" && EMAIL_RE.test(value)) {
+    EMAIL_RE.lastIndex = 0;
+    return value.replace(EMAIL_RE, "<redacted:email>");
   }
   return value;
 }

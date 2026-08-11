@@ -65,6 +65,67 @@ describe("generateReport — empty case", () => {
   });
 });
 
+describe("generateReport — org/charge point id redaction", () => {
+  it("redacts the org id and charge point id everywhere they appear, including nested inside a body", () => {
+    const orgId = "01dc16c0-c280-44b8-834c-580e13945b5e";
+    const chargePointId = "18240be1-382a-494a-a360-48a8220da9c3";
+    const report = generateReport(
+      [
+        record({
+          redactedBody: {
+            data: {
+              id: chargePointId,
+              relationships: { organisation: { data: { id: orgId } } },
+            },
+          },
+        }),
+      ],
+      { mode: "live", generatedAt: "2026-01-01T00:00:00.000Z", aborted: false, orgId, chargePointId },
+    );
+    expect(report).not.toContain(orgId);
+    expect(report).not.toContain(chargePointId);
+    expect(report).toContain("<redacted:orgId>");
+    expect(report).toContain("<redacted:chargePointId>");
+    // The metadata header itself must be redacted too, not just body occurrences.
+    expect(report).toContain("**Org id:** `<redacted:orgId>`");
+    expect(report).toContain("**Charge point id:** `<redacted:chargePointId>`");
+  });
+
+  it("redacts a discovered location id wherever it appears — it ties directly to a physical address", () => {
+    const locationId = "3c07126b-774a-4e63-b251-4cdcd2eabacb";
+    const report = generateReport(
+      [record({ redactedBody: { data: { relationships: { location: { data: { id: locationId } } } } } })],
+      { mode: "live", generatedAt: "2026-01-01T00:00:00.000Z", aborted: false, locationId },
+    );
+    expect(report).not.toContain(locationId);
+    expect(report).toContain("<redacted:locationId>");
+  });
+
+  it("redacts operator-supplied free-text terms (--redact), for PII under a key not already covered by redact.ts (e.g. 'name')", () => {
+    const report = generateReport(
+      [record({ redactedBody: { data: { note: "Owned by Jane Doe" } } })],
+      {
+        mode: "live",
+        generatedAt: "2026-01-01T00:00:00.000Z",
+        aborted: false,
+        redactTerms: ["Jane Doe"],
+      },
+    );
+    expect(report).not.toContain("Jane Doe");
+    expect(report).toContain("<redacted:custom>");
+  });
+
+  it("does not touch the report when no org/charge point id is known (dry-run with no discovery)", () => {
+    const report = generateReport([record()], {
+      mode: "dry-run",
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      aborted: false,
+    });
+    expect(report).not.toContain("<redacted:orgId>");
+    expect(report).not.toContain("<redacted:chargePointId>");
+  });
+});
+
 describe("generateReport — dry-run banner", () => {
   it("prints an unmistakable dry-run banner live findings could not be confused with", () => {
     const report = generateReport(

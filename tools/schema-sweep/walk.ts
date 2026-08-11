@@ -81,6 +81,7 @@ function mergeDiscovered(
   return {
     orgId: ctx.orgId ?? discovered.orgId,
     chargePointId: ctx.chargePointId ?? discovered.chargePointId,
+    locationId: ctx.locationId ?? discovered.locationId,
   };
 }
 
@@ -135,8 +136,14 @@ export async function runWalk(options: WalkOptions): Promise<WalkResult> {
     records.push(record);
     options.onProgress?.(record, index, endpoints.length);
 
-    if (endpoint.extractContext) {
-      ctx = mergeDiscovered(ctx, endpoint.extractContext(record.redactedBody, ctx));
+    // Reads the context capture.ts already extracted from the *raw* body —
+    // never re-derives it from record.redactedBody, since ids are themselves
+    // redacted there (any key equal to or ending in "id"; see redact.ts).
+    // This works identically for a freshly captured and a resumed/cached
+    // record: both carry discoveredContext on the persisted (gitignored)
+    // capture file.
+    if (record.discoveredContext) {
+      ctx = mergeDiscovered(ctx, record.discoveredContext);
     }
   }
 

@@ -1,11 +1,14 @@
 /**
  * Captures one endpoint: builds its request (or reports the dependency it's
  * still waiting on), sends it via `readClient.ts`, computes the schema diff
- * against the *unredacted* raw body (so the diff sees real values), and only
- * then redacts the body for storage. Pure with respect to disk — `walk.ts`
- * decides when/where to persist the returned record, which is what makes
- * resumability (skip what's already on disk) and the dry-run pipeline (no
- * disk at all until the caller asks) both possible from the same function.
+ * and the discovered context (org/charge-point/location id for later
+ * endpoints) against the *unredacted* raw body — the diff so it sees real
+ * values, the context extraction because the ids it reads are themselves
+ * redacted in the stored body — and only then redacts the body for storage.
+ * Pure with respect to disk — `walk.ts` decides when/where to persist the
+ * returned record, which is what makes resumability (skip what's already on
+ * disk) and the dry-run pipeline (no disk at all until the caller asks) both
+ * possible from the same function.
  */
 
 import type { Transport } from "../../src/http/transport.js";
@@ -118,5 +121,8 @@ export async function captureEndpoint(
     httpStatus: raw.httpStatus,
     diff,
     redactedBody: raw.rawJson === undefined ? undefined : redactJson(raw.rawJson),
+    // Extracted from the *raw* body, before redaction — see discoveredContext's
+    // doc comment on why this can no longer be re-derived from redactedBody.
+    discoveredContext: endpoint.extractContext?.(raw.rawJson, ctx),
   };
 }

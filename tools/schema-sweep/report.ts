@@ -17,8 +17,20 @@ export interface ReportMeta {
   generatedAt: string;
   orgId?: string | undefined;
   chargePointId?: string | undefined;
+  locationId?: string | undefined;
   aborted: boolean;
   abortReason?: string | undefined;
+  /**
+   * Operator-supplied literal strings to redact everywhere in the rendered
+   * document, on top of the field-name-keyed redaction already applied to
+   * each body (`tools/schema-sweep/redact.ts`) and the org/charge point id
+   * pass below. Exists because free-text fields the API returns — a
+   * charger's display name, a location's label — are set by the account
+   * holder and can embed identifying content (a name, a street) no
+   * automated field-name or pattern match can anticipate. Populated from the
+   * CLI's repeatable `--redact <term>` flag.
+   */
+  redactTerms?: readonly string[] | undefined;
 }
 
 const MAX_BODY_CHARS = 4000;
@@ -176,6 +188,31 @@ function totalFindingCount(records: readonly EndpointCaptureRecord[]): number {
   }, 0);
 }
 
+/**
+ * The org id and charge point id are account-identifying values, but they
+ * are plain resource ids embedded throughout every nested response body
+ * (relationships, `data.id`, etc.) under many different key names — no
+ * curated key list in `redact.ts` can catch all of them. Since the exact
+ * values are known once discovery resolves them, the reliable redaction is
+ * a global literal-value replace over the *rendered* document, applied last
+ * so it also catches the metadata header and every endpoint body alike.
+ *
+ * `redactTerms` extends the same mechanism to whatever the operator already
+ * knows is identifying in their own account's data (see `ReportMeta`'s doc
+ * comment) — a free-text charger or location name is exactly the case
+ * neither key-name nor pattern-based redaction can anticipate.
+ */
+function redactKnownIds(markdown: string, meta: ReportMeta): string {
+  let out = markdown;
+  if (meta.orgId) out = out.split(meta.orgId).join("<redacted:orgId>");
+  if (meta.chargePointId) out = out.split(meta.chargePointId).join("<redacted:chargePointId>");
+  if (meta.locationId) out = out.split(meta.locationId).join("<redacted:locationId>");
+  for (const term of meta.redactTerms ?? []) {
+    if (term) out = out.split(term).join("<redacted:custom>");
+  }
+  return out;
+}
+
 export function generateReport(
   records: readonly EndpointCaptureRecord[],
   meta: ReportMeta,
@@ -261,5 +298,5 @@ export function generateReport(
       "is a safety net, not a guarantee — see `docs/downstream-validation.md`.",
   );
 
-  return lines.join("\n");
+  return redactKnownIds(lines.join("\n"), meta);
 }
