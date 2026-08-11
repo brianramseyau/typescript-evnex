@@ -11,8 +11,8 @@
  * outside the repo:
  *
  *   1. A normal install (optional `qrcode` present) — proves `npx evnex
- *      --version` actually runs from what a real `npm install evnex` would
- *      produce, via npm's own bin-symlink mechanism in `node_modules/.bin`
+ *      --version` actually runs from what a real `npm install evnex-client`
+ *      would produce, via npm's own bin-symlink mechanism in `node_modules/.bin`
  *      (exactly what `npx` resolves to for an already-installed package).
  *   2. An install with `--omit=optional` (`qrcode` genuinely absent from
  *      `node_modules`, not just unused) — proves the CLI's MFA-enrollment
@@ -127,7 +127,7 @@ if (qrcodeCheck.status === 0) {
 // only need the "(install the qrcode package...)" stderr notice, no throw,
 // no attempt to render terminal ASCII art).
 const qrProbe = `
-import { showQr } from ${JSON.stringify(join(noOptDir, "node_modules", "evnex", "dist", "cli", "qr.js"))};
+import { showQr } from ${JSON.stringify(join(noOptDir, "node_modules", "evnex-client", "dist", "cli", "qr.js"))};
 try {
   await showQr("otpauth://totp/evnex-test?secret=JBSWY3DPEHPK3PXP&issuer=evnex");
   process.exit(0);

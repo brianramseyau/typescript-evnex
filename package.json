@@ -1,5 +1,5 @@
 {
-  "name": "evnex",
+  "name": "evnex-client",
   "version": "0.1.0",
   "description": "TypeScript client for the Evnex EV charger Cloud API — a faithful port of python-evnex.",
   "type": "module",

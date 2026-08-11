@@ -74,7 +74,7 @@ the policy.
 ## Installation
 
 ```shell
-npm install evnex
+npm install evnex-client
 ```
 
 **Requirements:** Node 20+. ESM only.
@@ -86,8 +86,8 @@ uses it to call the API. Credentials establish a session once and are never
 stored:
 
 ```ts
-import { Evnex } from "evnex";
-import { EvnexAuth } from "evnex/auth";
+import { Evnex } from "evnex-client";
+import { EvnexAuth } from "evnex-client/auth";
 
 const auth = new EvnexAuth();
 await auth.startAuthentication(
@@ -112,7 +112,7 @@ If the account has MFA enabled, `startAuthentication` resolves to an
 code, and answer it:
 
 ```ts
-import { isAuthChallenge } from "evnex/auth";
+import { isAuthChallenge } from "evnex-client/auth";
 
 let result = await auth.startAuthentication(username, password);
 while (isAuthChallenge(result)) {
@@ -135,7 +135,7 @@ completed before any request uses the new tokens, so your stored copy can never
 fall behind one that is already in use:
 
 ```ts
-import { EvnexAuth, TokenSet } from "evnex/auth";
+import { EvnexAuth, TokenSet } from "evnex-client/auth";
 
 const auth = new EvnexAuth({
   tokens: TokenSet.fromJSON(await myStore.read()),

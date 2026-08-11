@@ -98,11 +98,11 @@ describe("schema sweep is read-only", () => {
     expect(reached.has(SRC_INDEX)).toBe(false);
   });
 
-  it("never imports 'evnex' (the published package name, resolving to the same barrel)", () => {
+  it("never imports 'evnex-client' (the published package name, resolving to the same barrel)", () => {
     for (const file of listTsFiles(SWEEP_DIR)) {
       const text = readFileSync(file, "utf8");
-      // Bare "evnex" / "evnex/..." specifiers (not "evnex-something-else").
-      expect(text).not.toMatch(/from\s+["']evnex(\/|["'])/);
+      // Bare "evnex-client" / "evnex-client/..." specifiers.
+      expect(text).not.toMatch(/from\s+["']evnex-client(\/|["'])/);
     }
   });
 

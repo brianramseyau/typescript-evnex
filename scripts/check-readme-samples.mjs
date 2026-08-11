@@ -86,10 +86,10 @@ function extractSamples(markdown) {
 // exported symbol in a fragment; do NOT add ad hoc example-specific names
 // here — those belong in AMBIENT_DECLARATIONS below instead.
 const PACKAGE_EXPORTS = {
-  Evnex: "evnex",
-  EvnexAuth: "evnex/auth",
-  TokenSet: "evnex/auth",
-  isAuthChallenge: "evnex/auth",
+  Evnex: "evnex-client",
+  EvnexAuth: "evnex-client/auth",
+  TokenSet: "evnex-client/auth",
+  isAuthChallenge: "evnex-client/auth",
 };
 
 // name -> the `declare` statement to inject when a sample uses the name
@@ -97,8 +97,8 @@ const PACKAGE_EXPORTS = {
 // widening it silently to "any undeclared identifier becomes `any`" would
 // let a genuine typo in a sample pass unnoticed.
 const AMBIENT_DECLARATIONS = {
-  auth: 'declare const auth: import("evnex/auth").EvnexAuth;',
-  evnex: 'declare const evnex: import("evnex").Evnex;',
+  auth: 'declare const auth: import("evnex-client/auth").EvnexAuth;',
+  evnex: 'declare const evnex: import("evnex-client").Evnex;',
   username: "declare const username: string;",
   password: "declare const password: string;",
   code: "declare const code: string;",
@@ -112,7 +112,7 @@ const AMBIENT_DECLARATIONS = {
   // guess — a store that round-trips a plain string would make the sample's
   // own calls fail to type-check regardless of what this declares.
   myStore:
-    'declare const myStore: { read(): Promise<Partial<import("evnex/auth").TokenSetJSON>>; write(data: import("evnex/auth").TokenSetJSON): Promise<void> };',
+    'declare const myStore: { read(): Promise<Partial<import("evnex-client/auth").TokenSetJSON>>; write(data: import("evnex-client/auth").TokenSetJSON): Promise<void> };',
 };
 
 /** True if `source` already declares/imports `name` itself (so we must not shadow it). */
@@ -187,11 +187,12 @@ function main() {
         noEmit: true,
         composite: false,
         declaration: false,
-        // "evnex" / "evnex/auth" resolve straight to source via this path
-        // mapping. The obvious alternative — let plain node-modules
-        // resolution find the real package.json "exports" map, the way an
-        // actual installed consumer would — doesn't work here: there is no
-        // published `evnex` package to link in workDir's node_modules, and
+        // "evnex-client" / "evnex-client/auth" resolve straight to source via
+        // this path mapping. The obvious alternative — let plain
+        // node-modules resolution find the real package.json "exports" map,
+        // the way an actual installed consumer would — doesn't work here:
+        // there is no published `evnex-client` package to link in workDir's
+        // node_modules, and
         // TypeScript's *self-referencing-package* resolution (a package
         // importing its own name via its own "exports" map with no
         // node_modules entry) hits TS2209 "the project root is ambiguous"
@@ -201,8 +202,8 @@ function main() {
         // self-reference, not something fixable from this script alone, so
         // `paths` sidesteps the whole self-reference code path instead.
         paths: {
-          evnex: [join(repoRoot, "src", "index.ts")],
-          "evnex/auth": [join(repoRoot, "src", "auth", "index.ts")],
+          "evnex-client": [join(repoRoot, "src", "index.ts")],
+          "evnex-client/auth": [join(repoRoot, "src", "auth", "index.ts")],
         },
         // Default typeRoots discovery walks up from workDir's own location
         // (outside the repo) and would never find this project's
