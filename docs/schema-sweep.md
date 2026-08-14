@@ -1,7 +1,7 @@
 # Schema sweep report
 
 - **Mode:** live
-- **Generated:** 2026-08-11T02:43:22.961Z
+- **Generated:** 2026-08-14T09:58:03.867Z
 - **Org id:** `<redacted:orgId>`
 - **Charge point id:** `<redacted:chargePointId>`
 - **Endpoints captured:** 14
@@ -16,10 +16,10 @@
 | `chargePointDetailV3` | GET | `/charge-points/{chargePointId}` | ✅ parsed cleanly | 2 | 0 | 0 |
 | `chargePointStatus` | POST | `/charge-points/{chargePointId}/commands/get-status` | ✅ parsed cleanly | 0 | 0 | 0 |
 | `chargePointEnergyMeterReading` | POST | `/charge-points/{chargePointId}/commands/get-energy-meter-reading` | ✅ parsed cleanly | 0 | 0 | 0 |
-| `chargePointOverride` | POST | `/charge-points/{chargePointId}/commands/get-override` | ✅ parsed cleanly | 0 | 0 | 0 |
+| `chargePointOverride` | POST | `/charge-points/{chargePointId}/commands/get-override` | ⏱️ timed out (likely offline charge point) | 0 | 0 | 0 |
 | `chargePointSolarConfig` | POST | `/charge-points/{chargePointId}/commands/get-solar` | ✅ parsed cleanly | 0 | 0 | 0 |
 | `chargePointTransactionsV2` *(deprecated)* | GET | `/v2/apps/charge-points/{chargePointId}/transactions` | ⚠️ HTTP error (404) | 0 | 0 | 0 |
-| `chargePointSessions` | GET | `/charge-points/{chargePointId}/sessions` | ✅ parsed cleanly | 92 | 0 | 0 |
+| `chargePointSessions` | GET | `/charge-points/{chargePointId}/sessions` | ✅ parsed cleanly | 96 | 0 | 0 |
 | `orgLocations` | GET | `/v2/apps/organisations/{orgId}/locations` | ✅ parsed cleanly | 4 | 0 | 0 |
 | `orgInsight` | GET | `/organisations/{orgId}/summary/insights` | ✅ parsed cleanly | 1 | 0 | 0 |
 | `orgSummaryStatusV2` | GET | `/v2/apps/organisations/{orgId}/summary/status` | ⚠️ HTTP error (404) | 0 | 0 | 0 |
@@ -60,15 +60,15 @@ None observed.
             "connectorType": "IEC_62196_T2",
             "evseId": "<redacted:id>",
             "meter": {
-              "frequency": 49.98,
-              "power": 0,
+              "frequency": 50.02,
+              "power": 6720,
               "powerType": "AC_1_PHASE",
-              "register": 719850,
-              "updatedDate": "2026-08-06T21:55:00.000Z"
+              "register": 731754,
+              "updatedDate": "2026-08-14T09:55:00.000Z"
             },
             "ocppCode": "NoError",
             "status": "",
-            "ocppStatus": "AVAILABLE",
+            "ocppStatus": "CHARGING",
             "powerType": "AC_1_PHASE",
             "updatedDate": "2026-02-15T20:24:12.852Z",
             "voltage": 240
@@ -89,8 +89,8 @@ None observed.
         "name": "<redacted:name>",
         "networkStatus": "ONLINE",
         "serial": "<redacted:serial>",
-        "networkStatusUpdatedDate": "2026-08-11T02:40:02.436Z",
-        "updatedDate": "2026-08-05T08:51:04.045Z",
+        "networkStatusUpdatedDate": "2026-08-14T09:55:42.756Z",
+        "updatedDate": "2026-08-14T09:53:55.495Z",
         "location": {
           "address": {
             "address1": "<redacted:address>",
@@ -208,7 +208,7 @@ None observed.
       "connectionConfiguration": {
         "automaticallyManaged": true,
         "preferredConnectionType": "WiFi",
-        "updatedDate": "2026-08-05T08:51:03.979Z",
+        "updatedDate": "2026-08-14T09:53:55.493Z",
         "wifiConnected": true
       },
       "connectors": [
@@ -216,19 +216,19 @@ None observed.
           "evseId": "<redacted:id>",
           "connectorFormat": "CABLE",
           "connectorType": "IEC_62196_T2",
-          "ocppStatus": "AVAILABLE",
+          "ocppStatus": "CHARGING",
           "powerType": "AC_1_PHASE",
           "connectorId": "<redacted:id>",
           "ocppCode": "NoError",
           "updatedDate": "2026-02-15T20:24:12.852Z",
           "meter": {
-            "currentL1": 0,
-            "frequency": 49.98,
-            "power": 0,
-            "register": 719850,
-            "supplyActivePower": 3766,
-            "updatedDate": "2026-08-06T21:55:00.000Z",
-            "voltageL1N": 232.5
+            "currentL1": 28.9,
+            "frequency": 50.02,
+            "power": 6720,
+            "register": 731754,
+            "supplyActivePower": 8397,
+            "updatedDate": "2026-08-14T09:55:00.000Z",
+            "voltageL1N": 233.2
           },
           "maxVoltage": 240,
           "maxAmperage": 32
@@ -264,13 +264,13 @@ None observed.
       "model": "E2F-25VO",
       "name": "<redacted:name>",
       "networkStatus": "ONLINE",
-      "networkStatusUpdatedDate": "2026-08-11T02:40:02.436Z",
+      "networkStatusUpdatedDate": "2026-08-14T09:55:42.756Z",
       "ocppChargePointId": "<redacted:id>",
       "profiles": {},
       "serial": "<redacted:serial>",
       "timeZone": "Australia/Melbourne",
       "tokenRequired": false,
-      "updatedDate": "2026-08-05T08:51:04.045Z",
+      "updatedDate": "2026-08-14T09:53:55.495Z",
       "vendor": "Evnex"
     },
     "relationships": {
@@ -317,6 +317,29 @@ None observed.
   ]
 }
 ```
+
+</details>
+### `chargePointOverride` — Charge point override config (command: get-override)
+
+- **Method / path template:** `POST /charge-points/{chargePointId}/commands/get-override`
+- **Outcome:** ⏱️ timed out (likely offline charge point)
+- **Note:** Request to /charge-points/<redacted:chargePointId>/commands/get-override timed out after 15000ms
+
+**1. Fields the wire returned that our schema does not declare:**
+None observed.
+
+**2. Fields our schema requires that the wire omitted:**
+None observed this run. Per PLAN.md: this does not prove any field is mandatory — only that every field happened to be present in this one sample. Absence of evidence for optionality is not evidence of requiredness.
+
+**3. Type and shape mismatches:**
+None observed.
+
+**4. Divergence from the Python model:**
+- evnex/schema/charge_points.py: EvnexChargePointOverrideConfig.chargeNow — `bool | Literal["NotSupported"]`, required in both, ported as z.union([z.boolean(), z.literal("NotSupported")]). Confirm this capture's value is one of those two shapes and not, e.g., a bare string status like "Enabled"/"Disabled" that would silently fail the union.
+
+<details><summary>Redacted response body</summary>
+
+_(empty response body)_
 
 </details>
 ### `chargePointTransactionsV2` — Charge point transactions (v2, deprecated) (deprecated)
@@ -444,6 +467,10 @@ None observed.
 - `data[22].attributes.cost`
 - `data[22].attributes.energyUsage`
 - `data[22].attributes.transaction.id`
+- `data[23].attributes.chargingConfiguration`
+- `data[23].attributes.cost`
+- `data[23].attributes.energyUsage`
+- `data[23].attributes.transaction.id`
 
 **2. Fields our schema requires that the wire omitted:**
 None observed this run. Per PLAN.md: this does not prove any field is mandatory — only that every field happened to be present in this one sample. Absence of evidence for optionality is not evidence of requiredness.
@@ -491,12 +518,15 @@ None observed.
           },
           "repeats": "daily"
         },
-        "chargingStopped": "2026-08-06T21:56:31.000Z",
+        "chargingStarted": "2026-08-14T08:07:33.000Z",
         "connectorId": "<redacted:id>",
         "cost": {
-          "total": "0"
+          "distributionByTariff": {
+            "Flat": 100
+          },
+          "total": "3.5053"
         },
-        "createdDate": "2026-08-06T21:56:32.057Z",
+        "createdDate": "2026-08-14T08:07:27.841Z",
         "electricityCost": {
           "currency": "AUD",
           "tariffs": [
@@ -508,32 +538,49 @@ None observed.
           ],
           "tariffType": "Flat"
         },
-        "endDate": "2026-08-06T21:56:31.000Z",
         "energyUsage": {
-          "total": 0
+          "distributionByTariff": {
+            "Flat": 100
+          },
+          "total": 11911
         },
         "evseId": "<redacted:id>",
-        "sessionStatus": "Completed",
-        "startDate": "2026-08-06T21:56:31.000Z",
-        "totalChargingTime": 0,
+        "sessionStatus": "Active",
+        "startDate": "2026-08-14T08:07:28.000Z",
+        "totalCarbonUsage": 9090.33,
+        "totalChargingTime": 110,
         "totalCost": {
           "currency": "AUD",
-          "amount": "0"
+          "amount": "3.5733",
+          "distribution": {
+            "flat": 100
+          }
         },
-        "totalDuration": 0,
+        "totalDuration": 110,
         "totalEnergyUsage": {
-          "total": 0
+          "total": 11911,
+          "distributionByTariff": {
+            "flat": 100
+          },
+          "distributionByEnergySource": {
+            "batteryStorage": 9.8,
+            "coal": 57.8,
+            "gas": 6.4,
+            "hydro": 14.8,
+            "solar": 0.1,
+            "wind": 8.2,
+            "AU-QLD": 0.2,
+            "AU-TAS": 2.7
+          }
         },
-        "totalPowerUsage": 0,
+        "totalPowerUsage": 11911,
         "transaction": {
           "id": "<redacted:id>",
-          "meterStart": 719849,
-          "startDate": "2026-08-06T21:56:31.000Z",
-          "meterStop": 719849,
-          "endDate": "2026-08-06T21:56:31.000Z",
-          "reason": "EVDisconnected"
+          "meterStart": 719843,
+          "startDate": "2026-08-14T08:07:28.000Z",
+          "meterStop": 731754
         },
-        "updatedDate": "2026-08-06T21:56:32.496Z"
+        "updatedDate": "2026-08-14T09:55:00.000Z"
       },
       "id": "<redacted:id>",
       "relationships": {
@@ -590,31 +637,13 @@ None observed.
           },
           "repeats": "daily"
         },
-        "chargingStarted": "2026-08-06T06:25:30.000Z",
-        "chargingStopped": "2026-08-06T21:40:05.000Z",
+        "chargingStopped": "2026-08-06T21:56:31.000Z",
         "connectorId": "<redacted:id>",
         "cost": {
-          "distributionByTariff": {
-            "Flat": 100
-          },
-          "total": "21.9396"
+          "total": "0"
         },
-        "createdDate": "2026-08-06T06:25:40.458Z",
-        "electricityCost": {
-          "currency": "AUD",
-          "tariffs": [
-            {
-              "start": 0,
-              "rate": "0.3",
-              "type": "Flat"
-            }
-          ],
-          "tariffType": "Flat"
-        },
-        "endDate": "2026-08-06T21:56:31.000Z",
-        "energyUsage": {
-          "distributionByTariff": {
-       
+        "createdDate": "2026-08-06T21:56:32.057Z",
+        "electri
 …(truncated)
 ```
 
@@ -725,7 +754,7 @@ None observed.
         "connectionConfiguration": {
           "automaticallyManaged": true,
           "preferredConnectionType": "WiFi",
-          "updatedDate": "2026-08-05T08:51:03.979Z",
+          "updatedDate": "2026-08-14T09:53:55.493Z",
           "wifiConnected": true
         },
         "connectors": [
@@ -733,19 +762,19 @@ None observed.
             "evseId": "<redacted:id>",
             "connectorFormat": "CABLE",
             "connectorType": "IEC_62196_T2",
-            "ocppStatus": "AVAILABLE",
+            "ocppStatus": "CHARGING",
             "powerType": "AC_1_PHASE",
             "connectorId": "<redacted:id>",
             "ocppCode": "NoError",
             "updatedDate": "2026-02-15T20:24:12.852Z",
             "meter": {
-              "currentL1": 0,
-              "frequency": 49.98,
-              "power": 0,
-              "register": 719850,
-              "supplyActivePower": 3766,
-              "updatedDate": "2026-08-06T21:55:00.000Z",
-              "voltageL1N": 232.5
+              "currentL1": 28.9,
+              "frequency": 50.02,
+              "power": 6720,
+              "register": 731754,
+              "supplyActivePower": 8397,
+              "updatedDate": "2026-08-14T09:55:00.000Z",
+              "voltageL1N": 233.2
             },
             "maxVoltage": 240,
             "maxAmperage": 32
@@ -781,14 +810,14 @@ None observed.
         "model": "E2F-25VO",
         "name": "<redacted:name>",
         "networkStatus": "ONLINE",
-        "networkStatusUpdatedDate": "2026-08-11T02:43:19.667Z",
+        "networkStatusUpdatedDate": "2026-08-14T09:58:00.057Z",
         "ocppChargePointId": "<redacted:id>",
         "profiles": {},
         "serial": "<redacted:serial>",
         "timeZone": "Australia/Melbourne",
         "tokenRequired": false,
-        "updatedDate": "2026-08-05T08:51:04.045Z",
-        "vendor": "Ev
+        "updatedDate": "2026-08-14T09:53:55.495Z",
+        "vendor"
 …(truncated)
 ```
 
@@ -800,7 +829,7 @@ None observed.
 - **HTTP status:** 200
 
 **1. Fields the wire returned that our schema does not declare:**
-- `data[2].attributes.cost.AUD`
+- `data[6].attributes.cost.AUD`
 
 **2. Fields our schema requires that the wire omitted:**
 None observed this run. Per PLAN.md: this does not prove any field is mandatory — only that every field happened to be present in this one sample. Absence of evidence for optionality is not evidence of requiredness.
@@ -816,44 +845,6 @@ None observed.
 ```json
 {
   "data": [
-    {
-      "attributes": {
-        "carbonOffset": 0,
-        "cost": {},
-        "duration": 0,
-        "powerUsage": 0,
-        "sessions": 0,
-        "startDate": "2026-08-04T12:00:00.000Z"
-      }
-    },
-    {
-      "attributes": {
-        "carbonOffset": 0,
-        "cost": {},
-        "duration": 0,
-        "powerUsage": 0,
-        "sessions": 0,
-        "startDate": "2026-08-05T12:00:00.000Z"
-      }
-    },
-    {
-      "attributes": {
-        "carbonOffset": 22365,
-        "carbonUsage": 51844.270000000026,
-        "cost": {
-          "AUD": {
-            "distributionByImportTariffs": {
-              "Flat": 100
-            },
-            "total": 21.9396
-          }
-        },
-        "duration": 931,
-        "powerUsage": 74549,
-        "sessions": 2,
-        "startDate": "2026-08-06T12:00:00.000Z"
-      }
-    },
     {
       "attributes": {
         "carbonOffset": 0,
@@ -892,6 +883,44 @@ None observed.
         "powerUsage": 0,
         "sessions": 0,
         "startDate": "2026-08-10T12:00:00.000Z"
+      }
+    },
+    {
+      "attributes": {
+        "carbonOffset": 0,
+        "cost": {},
+        "duration": 0,
+        "powerUsage": 0,
+        "sessions": 0,
+        "startDate": "2026-08-11T12:00:00.000Z"
+      }
+    },
+    {
+      "attributes": {
+        "carbonOffset": 0,
+        "cost": {},
+        "duration": 0,
+        "powerUsage": 0,
+        "sessions": 0,
+        "startDate": "2026-08-12T12:00:00.000Z"
+      }
+    },
+    {
+      "attributes": {
+        "carbonOffset": 3573,
+        "carbonUsage": 9090.33,
+        "cost": {
+          "AUD": {
+            "distributionByImportTariffs": {
+              "Flat": 100
+            },
+            "total": 3.5053
+          }
+        },
+        "duration": 110,
+        "powerUsage": 11911,
+        "sessions": 1,
+        "startDate": "2026-08-13T12:00:00.000Z"
       }
     }
   ]
@@ -970,7 +999,7 @@ None observed.
         "updatedDate": "2022-04-13T08:31:03.628Z"
       }
     ],
-    "updatedDate": "2026-08-08T04:58:38.141Z",
+    "updatedDate": "2026-08-14T03:15:29.091Z",
     "type": "User"
   }
 }
@@ -1004,9 +1033,9 @@ None observed.
     "commandResultStatus": "Accepted",
     "chargePointStatus": {
       "chargeNow": false,
-      "chargingLogic": "NoVehicle",
+      "chargingLogic": "Transfer",
       "chargingCurrentControl": "FullPower",
-      "LEDState": "Idle",
+      "LEDState": "Charging",
       "AntiSleep": "Disabled"
     }
   }
@@ -1037,38 +1066,11 @@ None observed.
 ```json
 {
   "data": {
-    "timestamp": "2026-08-11T02:43:17.441Z",
-    "chargingActivePower": 0.016661008819937706,
-    "supplyActivePower": 2408.26708984375
+    "timestamp": "2026-08-14T09:57:34.458Z",
+    "chargingActivePower": 6679.1728515625,
+    "supplyActivePower": 8357.0703125
   },
   "status": "Accepted"
-}
-```
-
-</details>
-### `chargePointOverride` — Charge point override config (command: get-override)
-
-- **Method / path template:** `POST /charge-points/{chargePointId}/commands/get-override`
-- **Outcome:** ✅ parsed cleanly
-- **HTTP status:** 200
-
-**1. Fields the wire returned that our schema does not declare:**
-None observed.
-
-**2. Fields our schema requires that the wire omitted:**
-None observed this run. Per PLAN.md: this does not prove any field is mandatory — only that every field happened to be present in this one sample. Absence of evidence for optionality is not evidence of requiredness.
-
-**3. Type and shape mismatches:**
-None observed.
-
-**4. Divergence from the Python model:**
-- evnex/schema/charge_points.py: EvnexChargePointOverrideConfig.chargeNow — `bool | Literal["NotSupported"]`, required in both, ported as z.union([z.boolean(), z.literal("NotSupported")]). Confirm this capture's value is one of those two shapes and not, e.g., a bare string status like "Enabled"/"Disabled" that would silently fail the union.
-
-<details><summary>Redacted response body</summary>
-
-```json
-{
-  "chargeNow": false
 }
 ```
 
@@ -1132,8 +1134,8 @@ None observed.
   "data": {
     "attributes": {
       "connectors": {
-        "available": 1,
-        "charging": 0,
+        "available": 0,
+        "charging": 1,
         "disabled": 0,
         "faulted": 0,
         "occupied": 0,

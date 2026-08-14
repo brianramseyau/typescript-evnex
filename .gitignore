@@ -7,6 +7,6 @@ coverage/
 # complete, so the payloads are reviewed by eye before any of them are
 # copied into docs/ or test/support/. Ignored so that a routine `git add -A`
 # after a live run cannot commit an unreviewed charger serial or location.
-schema-sweep-output/
+schema-sweep-output*/
 *.log
 .DS_Store
